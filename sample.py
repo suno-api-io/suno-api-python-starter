@@ -1,6 +1,6 @@
 """Minimal Suno-API asynchronous generation example.
 
-Suno-API is an independent third-party service and is not affiliated with Suno.
+Suno-API uses official Suno V6 models.
 Never place a real API key in source control.
 """
 
