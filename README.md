@@ -2,6 +2,8 @@
 
 [简体中文](#简体中文) | [English](#english) | [日本語](#日本語) | [Français](#français) | [Русский](#русский)
 
+📚 [公开接口文档 / Public API documentation](./docs/README.md)
+
 ## 简体中文
 
 一个用于演示 AI 音乐生成任务状态机的最小 Python 示例。
