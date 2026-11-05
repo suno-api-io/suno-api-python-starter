@@ -4,6 +4,8 @@
 
 👤 [GitHub Profile](https://github.com/suno-api-io) | 📚 [公开接口文档 / Public API documentation](./docs/README.md)
 
+🟢 [Node.js Starter](./examples/node/README.md)
+
 ## 简体中文
 
 一个用于演示 AI 音乐生成任务状态机的最小 Python 示例。
