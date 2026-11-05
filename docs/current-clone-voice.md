@@ -1,43 +1,43 @@
-# 【Recommended】 Voice profile API
+# 【推荐】克隆音色 API
 
-> **✅ Recommended for new integrations.** According to extensive real-user testing, songs generated through this chain have a **high fidelity to the original voice**: the vocal in the finished track sounds closer to the person in the sample you uploaded, so it is the route we currently recommend to customers.
+> **✅ 推荐新接入使用本链路。** 根据大量用户的实际评测，这条链路生成的歌曲**原声还原度较高**，成品里的人声更接近你上传样本中的本人音色，因此作为当前的首选链路对外推荐。
 >
-> For comparison: the earlier [voice clone and generate-with-voice API](current-voice-clone.md) still works, but the navigation marks it "not recommended" and it is no longer recommended for new integrations.
+> 对照：早期的[人声克隆与指定人声生成 API（不推荐）](current-voice-clone.md) 仍然可用，但导航里已标注「不推荐」，不再推荐新接入。
 
-- Document date: 2026-09-26
-- Covered capabilities: create your own voice → cover a chosen song with it / sing a new song with it → poll progress → download the finished tracks
-- Every endpoint, field and response below was verified with real calls (items marked "measured" were verified in detail)
+- 文档日期：2026-09-26
+- 覆盖能力：创建自己的音色 → 用音色翻唱指定歌曲 / 用音色唱新歌 → 查询进度 → 下载成品
+- 全文接口、字段与响应都经过真实调用验证（下文标注「实测」的为重点验证项）
 
-> Note: this document only describes the endpoints you call. Media handling, task scheduling and content validation are all done automatically on the server; the client does not implement them.
+> 说明：本文档只描述你需要调用的接口。素材处理、任务调度、内容校验等环节都由服务端自动完成，客户端无需实现。
 
 ---
 
-## 0. Five-minute quick start
+## 0. 五分钟上手
 
-Four steps are enough to turn one vocal sample into two finished songs.
+只要四步，就能从一段人声样本拿到两首成品歌。
 
 ```text
-① Create the voice   POST /api/music/voice-profile/create   → get voice_id (status=ready)
-② Cover with it      POST /api/music/voice-profile/cover    → immediately get 2 song_ids
-③ Poll progress      POST /api/music/query                  → poll until status=completed
-④ Download           GET  /api/music/download?song_id=…&kind=mp3
+① 创建音色    POST /api/music/voice-profile/create      → 拿到 voice_id（status=ready）
+② 用音色翻唱  POST /api/music/voice-profile/cover       → 立刻拿到 2 个 song_id
+③ 查询进度    POST /api/music/query                     → 轮询到 status=completed
+④ 下载成品    GET  /api/music/download?song_id=…&kind=mp3
 ```
 
-Minimal working example (curl):
+最小可用示例（curl）：
 
 ```bash
-API_KEY="sk-your-key"
+API_KEY="sk-你的密钥"
 BASE="https://www.suno-api.io"
 
-# ① Create the voice (upload a vocal sample; 10 s or more is recommended, under 10 MB)
+# ① 创建音色（上传一段人声样本，建议 10 秒以上、10MB 以内）
 curl -sS -X POST "$BASE/api/music/voice-profile/create" \
   -H "Authorization: Bearer $API_KEY" \
   -F "file=@./my-voice.mp3" \
-  -F "title=My voice" \
+  -F "title=我的音色" \
   -F "source_kind=upload"
 # → {"success":true,"message":"","data":{"voice_id":"vp_2026…","status":"ready", …}}
 
-# ② Cover a song with that voice (song_clip_id = the clip id of the song to cover)
+# ② 用这个音色翻唱一首歌（song_clip_id = 要翻唱的那首歌的 clip id）
 curl -sS -X POST "$BASE/api/music/voice-profile/cover" \
   -H "Authorization: Bearer $API_KEY" \
   -H "X-Create-Ui-Client-Request-Id: cover-$(date +%s)" \
@@ -46,57 +46,57 @@ curl -sS -X POST "$BASE/api/music/voice-profile/cover" \
         "model": "suno-v6",
         "voice_id": "vp_2026…",
         "song_clip_id": "5b773e9a-…",
-        "lyrics": "[Verse 1]\nlyric text…",
-        "style_requirements": "slow folk, acoustic guitar",
+        "lyrics": "[Verse 1]\n歌词正文…",
+        "style_requirements": "慢速民谣，木吉他",
         "audio_weight": 0.85,
         "max_mode": false
       }'
 # → {"code":200,"message":"success","data":{"resolved_scene":"cover","clips":[{…},{…}]}}
 
-# ③ Poll (send several ids at once, separated by English commas)
+# ③ 轮询（一次传多个 id，用英文逗号分隔）
 curl -sS -X POST "$BASE/api/music/query" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"suno-v6","song_ids":"id1,id2"}'
 
-# ④ Download the mp3 once finished (only status=completed gives you a file)
+# ④ 完成后下载 mp3（status=completed 才能拿到文件）
 curl -sS -L "$BASE/api/music/download?song_id=id1&kind=mp3" \
   -H "Authorization: Bearer $API_KEY" -o song1.mp3
 ```
 
 ---
 
-## 1. Common conventions
+## 1. 公共约定
 
-### 1.1 Domain and environment
+### 1.1 域名与环境
 
-| Environment | Base URL | Purpose |
+| 环境 | Base URL | 用途 |
 | --- | --- | --- |
-| Production | `https://www.suno-api.io` | Live customer traffic |
+| 生产 | `https://www.suno-api.io` | 正式对客 |
 
-Every path below is relative to the Base URL; for example the full address of `POST /api/music/voice-profile/create` is
-`https://www.suno-api.io/api/music/voice-profile/create`.
+下文所有路径都相对 Base URL，例如 `POST /api/music/voice-profile/create` 的完整地址是
+`https://www.suno-api.io/api/music/voice-profile/create`。
 
-### 1.2 Authentication
+### 1.2 鉴权
 
-All endpoints use the same request header, whose value is the API key you created in the console:
+所有接口都用同一个请求头，值就是你在控制台创建的 API Key：
 
 ```http
 Authorization: Bearer sk-xxxxxxxx
 ```
 
-- The `Bearer ` prefix is optional; so is the `sk-` prefix (`Authorization: sk-xxx` works just as well).
-- A missing or invalid key → HTTP 401, with a body like `{"success":false,"message":"…"}` (the wording follows the request language).
-- Each key can only see and only operate on the songs and voices of **its own account**.
+- `Bearer ` 前缀可带可不带；`sk-` 前缀可带可不带（`Authorization: sk-xxx` 同样有效）。
+- Key 缺失或无效 → HTTP 401，响应体形如 `{"success":false,"message":"…"}`（文案随请求语言变化）。
+- 每个 Key 只能看到、只能操作**自己账号**的歌曲与音色。
 
-### 1.3 Request body formats
+### 1.3 请求体格式
 
-- Creating a voice: `multipart/form-data` is recommended (uploading a file); `application/json` (a URL or base64) is also supported.
-- All other endpoints: `application/json`.
+- 创建音色：推荐 `multipart/form-data`（上传文件），也支持 `application/json`（传 URL 或 base64）。
+- 其余接口：`application/json`。
 
-### 1.4 Two response shells (**customers only need to know these two**)
+### 1.4 两种响应外壳（**对客只需认这两种**）
 
-The "voice management" endpoints (create / create-from-clip / list / detail / delete) use the **business shell**:
+「音色管理」类接口（create / create-from-clip / list / detail / delete）用**业务外壳**：
 
 ```json
 { "success": true, "message": "", "data": { } }
@@ -106,7 +106,7 @@ The "voice management" endpoints (create / create-from-clip / list / detail / de
 { "success": false, "message": "voice_id is required" }
 ```
 
-"Voice cover" goes through the generation channel and uses the **generation shell**: success is `code/message/data`, failure is an `error` object:
+「音色翻唱」走生成通道，用**生成外壳**：成功是 `code/message/data`，失败是 `error` 对象：
 
 ```json
 { "code": 200, "message": "success", "data": { } }
@@ -116,113 +116,113 @@ The "voice management" endpoints (create / create-from-clip / list / detail / de
 { "error": { "message": "voice not found: vp_xxx", "type": "bad_response_status_code", "param": "", "code": "bad_response_status_code" } }
 ```
 
-How to decide: look at the HTTP status code first, then at `success === false`, then at `code !== 200` or the presence of `error`.
-**A business failure does not guarantee a non-200 HTTP status** (voice management endpoints still return HTTP 200 on error), so you cannot rely on the HTTP status code alone.
+判定建议：先看 HTTP 状态码，再看 `success === false`，最后看 `code !== 200` 或是否存在 `error`。
+**业务失败不保证 HTTP 非 200**（音色管理类接口出错时 HTTP 仍是 200），所以不能只看 HTTP 状态码。
 
-### 1.5 Idempotency
+### 1.5 幂等
 
-**Creating a voice (including "create from existing audio") is genuinely idempotent**: under the same key, resubmitting the same `client_request_id` creates only one voice and the second attempt returns the first result directly (`success=true`, the same `voice_id`). The usage is for the client to generate an id itself (a UUID, say) and reuse the same value when retrying after a timeout.
+**创建音色（含「从已有音频创建」）是真正幂等的**：同一个 Key 下，同一个 `client_request_id` 重复提交只会建一条音色，第二次直接返回第一次的结果（`success=true`、同一个 `voice_id`）。用法是客户端自己生成一个 id（例如 UUID），超时重试时复用同一个值。
 
-**Cover submission does no request-level de-duplication** (it is a billed generation), so note two things:
+**翻唱提交不做请求级去重**（它是一次计费生成），请注意两点：
 
-1. The submission identifier goes in the request header `X-Create-Ui-Client-Request-Id: <your submission id>`. It is written into the server-side task record to make later investigation easier; it **does not** prevent a duplicate charge.
-2. A submission timeout ≠ failure: the request may already have been accepted and be generating. Before retrying, check `GET /api/music/songs?p=1&page_size=20` (the pagination parameters are `p` / `page_size`; the compatible spelling `ps` also works) to see whether a new song with `generation_type=voice_profile_cover` has already appeared, and only resend the same request if it has not.
+1. 提交标识放在请求头 `X-Create-Ui-Client-Request-Id: <你的提交 id>`。它会写进服务端任务记录，便于事后排查；它**不会**阻止重复扣费。
+2. 提交超时 ≠ 失败：请求可能已经被受理并在生成。重试前建议先 `GET /api/music/songs?p=1&page_size=20`（分页参数是 `p` / `page_size`，也可用兼容写法 `ps`）看最近是否已经出现 `generation_type=voice_profile_cover` 的新歌，确认没有再把同样的请求重发一次。
 
-The bodies of `create` and `create-from-clip` also take a `client_request_id` field (see §3 and §4).
+`create` 与 `create-from-clip` 的 body 里也用 `client_request_id` 字段（见 §3、§4）。
 
-### 1.6 Billing overview
+### 1.6 计费总览
 
-| Action | Endpoint | Price | Notes |
+| 动作 | 接口 | 价格 | 说明 |
 | --- | --- | --- | --- |
-| Create a voice (standard) | `POST /api/music/voice-profile/create` | **Free** | Uploading a sample does not consume Suno credits |
-| Create a voice (from existing audio) | `POST /api/music/voice-profile/create-from-clip` | **Free** | The server only registers a reference to the asset; nothing is re-uploaded |
-| Enhanced clone | Same, `enhanced=true` | At the "enhanced upload price" (¥10 per call by default) | Asynchronous; refunded automatically on failure |
-| Voice cover | `POST /api/music/voice-profile/cover` | **¥1.2 per call**; **¥2.4 per call** when `max_mode=true` | Returns 2 songs per call |
-| Query / list / detail / delete | — | **Free** | |
-| Download (take the direct link yourself) | The `audio_url` in the response | Free | Plays/streams the address we hand out |
-| Download (convert to wav / lyrics etc.) | `POST /api/music/free2` | ¥0.2 per successful song | See §8 |
+| 创建音色（普通） | `POST /api/music/voice-profile/create` | **免费** | 上传样本不消耗 Suno 额度 |
+| 创建音色（从已有音频） | `POST /api/music/voice-profile/create-from-clip` | **免费** | 服务端只登记素材引用，不重新上传 |
+| 强化克隆 | 同上，`enhanced=true` | 按「强化上传价」（默认 10 元/次） | 异步，失败自动退款 |
+| 音色翻唱 | `POST /api/music/voice-profile/cover` | **1.2 元/次**；`max_mode=true` 时 **2.4 元/次** | 一次返回 2 首 |
+| 查询 / 列表 / 详情 / 删除 | — | **免费** | |
+| 下载（自行取直链） | 响应里的 `audio_url` | 免费 | 直接播放下发地址 |
+| 下载（转 wav / 歌词等） | `POST /api/music/free2` | 0.2 元/成功首 | 见 §8 |
 
-Prices can be read at any time from a public endpoint, so do not hard-code them (see §9):
+价格随时可通过公开接口读取，不要写死（见 §9）：
 
 ```bash
 curl -sS https://www.suno-api.io/api/pricing/catalog | jq '.data.catalog.meta'
 # {
 #   "generation_price": "0.6",
-#   "voice_generation_price": "1.2",      ← base price for a voice cover
+#   "voice_generation_price": "1.2",      ← 音色翻唱基准价
 #   "max_mode_factor": "2",
-#   "enhanced_upload_price": "10",        ← enhanced clone price
+#   "enhanced_upload_price": "10",        ← 强化克隆价
 #   "voice_auto_verify_price": "5",
 #   "voice_long_term_clone_price": "5"
 # }
 ```
 
-Covers use **pre-charge + refund on failure**:
+翻唱采用**预扣费 + 失败退款**：
 
-- A rejected request (bad parameters, a platform 4xx/5xx, insufficient balance itself) **is not charged** — submitting with a non-existent voice left the balance completely unchanged in testing (delta = 0);
-- An accepted task that ultimately fails (including a platform service error) goes through the server-side refund path and returns the pre-charged amount.
+- 请求被拒绝（参数错误、平台 4xx/5xx、余额不足本身）**不会扣费**——实测用不存在的音色提交后余额完全不变（delta = 0）；
+- 已受理的任务最终失败（含平台服务异常）会走服务端退款链路退回预扣金额。
 
-### 1.7 Status dictionary
+### 1.7 状态字典
 
-The voice's `status`:
+音色的 `status`：
 
-| Value | Meaning | Usable for covers |
+| 值 | 含义 | 可用来翻唱 |
 | --- | --- | --- |
-| `ready` | Ready | ✅ |
-| `processing` | Only appears for an enhanced clone (`enhanced=true`); being processed | ❌ (wait for ready) |
-| `failed` | Creation failed; see `error_message`; an enhanced clone has already been refunded | ❌ |
+| `ready` | 已就绪 | ✅ |
+| `processing` | 仅强化克隆（`enhanced=true`）会出现，正在处理 | ❌（要等 ready） |
+| `failed` | 创建失败，看 `error_message`；强化克隆已退款 | ❌ |
 
-The song's `status` (the value returned by the query endpoints):
+歌曲的 `status`（查询接口返回值）：
 
-| Value | Meaning | Downloadable |
+| 值 | 含义 | 可下载 |
 | --- | --- | --- |
-| `submitted` / `queued` / `processing` | Generating (a preview stream may already exist) | ❌ |
-| `completed` | Done | ✅ |
-| `failed` | Failed; the charge has been refunded | ❌ |
+| `submitted` / `queued` / `processing` | 生成中（可能已有试听流） | ❌ |
+| `completed` | 完成 | ✅ |
+| `failed` | 失败，费用已退回 | ❌ |
 
 ---
 
-## 2. Endpoint overview
+## 2. 接口总览
 
-| # | Method | Path | Purpose | Billing |
+| # | 方法 | 路径 | 作用 | 计费 |
 | --- | --- | --- | --- | --- |
-| 1 | POST | `/api/music/voice-profile/create` | Create a voice (upload / URL / base64) | Free (except `enhanced=true`) |
-| 2 | POST | `/api/music/voice-profile/create-from-clip` | Create a voice from audio you already have | Free |
-| 3 | GET | `/api/music/voice-profile/list` | Voice list | Free |
-| 4 | GET | `/api/music/voice-profile/{voice_id}` | Voice detail (including enhanced clone progress) | Free |
-| 5 | POST | `/api/music/voice-profile/delete` | Delete a voice | Free |
-| 6 | POST | `/api/music/voice-profile/cover` | Cover with the voice / sing a new song | ¥1.2 (MAX ¥2.4) |
-| 7 | POST | `/api/music/query` | Batch song status query | Free |
-| 8 | GET | `/api/music/songs/{song_id}` | Single song detail | Free |
-| 9 | GET | `/api/music/download` | Download the finished file | Free (mp3/playback link) |
-| 10 | POST | `/api/music/free2` | Convert to wav / fetch lyrics etc. | ¥0.2 per successful song |
-| 11 | POST | `/api/music/free2/cached` | Fetch an already-archived download address | Free |
-| 12 | GET | `/api/music/songs` | My works, paginated | Free |
+| 1 | POST | `/api/music/voice-profile/create` | 创建音色（上传 / URL / base64） | 免费（`enhanced=true` 除外） |
+| 2 | POST | `/api/music/voice-profile/create-from-clip` | 用自己已有的音频创建音色 | 免费 |
+| 3 | GET | `/api/music/voice-profile/list` | 音色列表 | 免费 |
+| 4 | GET | `/api/music/voice-profile/{voice_id}` | 音色详情（含强化克隆进度） | 免费 |
+| 5 | POST | `/api/music/voice-profile/delete` | 删除音色 | 免费 |
+| 6 | POST | `/api/music/voice-profile/cover` | 用音色翻唱 / 唱新歌 | 1.2 元（MAX 2.4） |
+| 7 | POST | `/api/music/query` | 批量查询歌曲状态 | 免费 |
+| 8 | GET | `/api/music/songs/{song_id}` | 单首详情 | 免费 |
+| 9 | GET | `/api/music/download` | 下载成品文件 | 免费（mp3/播放链接） |
+| 10 | POST | `/api/music/free2` | 转 wav / 歌词等 | 0.2 元/成功首 |
+| 11 | POST | `/api/music/free2/cached` | 取已归档的下载地址 | 免费 |
+| 12 | GET | `/api/music/songs` | 我的作品列表（分页） | 免费 |
 
 ---
 
-## 3. Create a voice
+## 3. 创建音色
 
 ```http
 POST /api/music/voice-profile/create
 ```
 
-Register a piece of vocal audio as a "voice" and get a `voice_id`. To the platform a voice is simply "a piece of audio + its clip in the catalogue", so once creation succeeds **that source audio is kept permanently** (for later covers).
+把一段人声音频登记成「音色」，得到 `voice_id`。音色对平台而言就是「一段音频 + 它在曲库里的 clip」，因此创建成功后**这段源音频永久保留**（用于后续翻唱）。
 
-### 3.1 Three input forms (pick one)
+### 3.1 三种入参形态（任选其一）
 
-**Form A: multipart file upload (recommended)**
+**形态 A：multipart 上传文件（推荐）**
 
 ```http
 Content-Type: multipart/form-data
 
-file=<audio binary>         # required
-title=<voice name>          # optional; when empty, the file name without its extension
-file_name=<original file name>
-source_file_name=<original file name>
-source_kind=upload|record   # optional, source marker (upload / record), defaults to upload
-enhanced=false|true         # optional, true = enhanced clone (see §3.5)
-client_request_id=<idempotency key>   # optional
-voice_id=<custom ID>        # optional, rarely used
+file=<音频二进制>          # 必填
+title=<音色名称>            # 可选，空则取文件名去掉扩展名
+file_name=<原始文件名>
+source_file_name=<原始文件名>
+source_kind=upload|record   # 可选，来源标记（上传 / 录制），缺省 upload
+enhanced=false|true         # 可选，true = 强化克隆（见 §3.5）
+client_request_id=<幂等键>   # 可选
+voice_id=<自定义 ID>         # 可选，一般不用
 ```
 
 ```bash
@@ -231,11 +231,11 @@ curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
   -F "file=@./my-voice.mp3;type=audio/mpeg" \
   -F "file_name=my-voice.mp3" \
   -F "source_file_name=my-voice.mp3" \
-  -F "title=My voice" \
+  -F "title=我的音色" \
   -F "source_kind=upload"
 ```
 
-**Form B: JSON + a public audio URL**
+**形态 B：JSON + 公网音频 URL**
 
 ```bash
 curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
@@ -244,37 +244,37 @@ curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
   -d '{
         "file_url": "https://your-cdn.example.com/voice/my-voice.mp3",
         "file_name": "my-voice.mp3",
-        "title": "My voice"
+        "title": "我的音色"
       }'
 ```
 
-- The URL must be a publicly reachable HTTPS direct link; the server downloads it once and stores it in our object storage.
-- You can also put the address in the `audio_url` field, which is equivalent in effect (when both are sent, `file_url` wins).
-- When the address is already on this platform's object storage (`*.myqcloud.com/create-ui/voice-source/...`), nothing is downloaded again: it is registered directly.
+- URL 必须是公网可访问的直链 HTTPS 地址，服务端会下载一次并转存到我们的对象存储。
+- 也可以把地址放在 `audio_url` 字段，效果等价（两者都传时以 `file_url` 为准）。
+- 已经是本平台对象存储地址（`*.myqcloud.com/create-ui/voice-source/...`）时不会重复下载，直接登记。
 
-**Form C: JSON + base64**
+**形态 C：JSON + base64**
 
 ```json
 {
   "file_base64": "data:audio/mpeg;base64,//uQxAAA…",
   "file_name": "my-voice.mp3",
-  "title": "My voice"
+  "title": "我的音色"
 }
 ```
 
-- Both a `data:audio/xxx;base64,` prefix and plain base64 are accepted.
-- Size is limited (base64 inflates by 1.33×), so use form A for large files.
+- 支持 `data:audio/xxx;base64,` 前缀，也支持纯 base64。
+- 体积受限（base64 会放大 1.33 倍），大文件请用形态 A。
 
-### 3.2 Audio requirements
+### 3.2 音频要求
 
-| Item | Requirement | Notes |
+| 项 | 要求 | 备注 |
 | --- | --- | --- |
-| Size | ≤ 10 MB | Over the limit the gateway truncates the body, which shows up as "rejected by Suno"; compress or trim first |
-| Duration | At least 6 s; **10–60 s recommended** | Under 6 s the platform rejects it: `Uploaded audio is too short (currently 2.4 seconds). Minimum duration is 6 seconds.` |
-| Format | mp3 / wav / m4a / aac / flac / ogg | Judged by the file extension |
-| Content | Clean vocals; avoid finished covers or original songs with backing | Audio that closely matches an existing recording in the catalogue is rejected: `This audio matches an existing recording in our catalog.` (measured) |
+| 体积 | ≤ 10MB | 超限会在网关被截断，表现为「被 Suno 拒绝」，请先压缩或剪短 |
+| 时长 | 最少 6 秒；**建议 10–60 秒** | 不足 6 秒会被平台拒绝：`Uploaded audio is too short (currently 2.4 seconds). Minimum duration is 6 seconds.` |
+| 格式 | mp3 / wav / m4a / aac / flac / ogg | 以文件扩展名判定 |
+| 内容 | 干净人声，避免翻唱成品 / 带伴奏的原曲 | 与曲库已有录音高度相似会被拒绝：`This audio matches an existing recording in our catalog.`（实测） |
 
-### 3.3 Response
+### 3.3 响应
 
 ```json
 {
@@ -285,7 +285,7 @@ curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
     "clip_id": "91cc5935-389f-4193-b56b-cc796c15562d",
     "song_id": "91cc5935-389f-4193-b56b-cc796c15562d",
     "account_id": "acc_1790085275308",
-    "title": "My voice",
+    "title": "我的音色",
     "source_file_name": "my-voice.mp3",
     "audio_url": "https://suno-api-p-1437223057.cos.ap-guangzhou.myqcloud.com/create-ui/voice-source/2026/09/26/xxx.mp3",
     "image_url": "https://cdn2.suno.ai/image_91cc5935-389f-4193-b56b-cc796c15562d.jpeg",
@@ -300,60 +300,60 @@ curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
 }
 ```
 
-Field reference (`create` / `list` / `detail` all share the same set of fields):
+字段说明（`create` / `list` / `detail` 三个接口共用同一套字段）：
 
-| Field | Type | Notes |
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `voice_id` | string | **The voice ID**; covers use it later |
-| `clip_id` / `song_id` | string | The clip id of that voice audio on Suno's side (the two are the same); for troubleshooting |
-| `account_id` | string | The account that carries it (for troubleshooting; the client need not care) |
-| `title` | string | Voice name |
-| `source_file_name` | string | Original file name |
-| `audio_url` | string | **Long-term direct link to the source audio**, usable for preview; kept permanently |
-| `image_url` | string | Voice cover (the artwork Suno generates for vocal audio); when there is no cover **the key is absent entirely** |
-| `duration_s` | number | Length of the voice sample in seconds |
-| `enhanced` | bool | Whether it was created as an enhanced clone |
-| `source_kind` | string | `upload` / `record` / `clip` (taken from existing audio) |
+| `voice_id` | string | **音色 ID**，后续翻唱用它 |
+| `clip_id` / `song_id` | string | 该音色音频在 Suno 侧的 clip id（两者相同），排查用 |
+| `account_id` | string | 承接账号标识（排查用，客户端无需关心） |
+| `title` | string | 音色名称 |
+| `source_file_name` | string | 原始文件名 |
+| `audio_url` | string | **源音频的长期直链**，可用于试听；永久保留 |
+| `image_url` | string | 音色封面（Suno 为人声音频生成的封面）；没有封面时**该键整个不出现** |
+| `duration_s` | number | 音色样本时长（秒） |
+| `enhanced` | bool | 是否强化克隆创建 |
+| `source_kind` | string | `upload`（上传）/ `record`（录制）/ `clip`（取自已有音频） |
 | `status` | string | `ready` / `processing` / `failed` |
-| `error_message` | string | Failure reason; present only when `failed` |
-| `task_id` | number | Underlying task number for an enhanced clone; only set when `enhanced=true` |
-| `pre_consumed_quota` | number | Pre-charged quota (only set for an enhanced clone) |
-| `created_at` / `updated_at` | number | Unix seconds |
+| `error_message` | string | 失败原因，仅 `failed` 时出现 |
+| `task_id` | number | 强化克隆的底层任务号，仅 `enhanced=true` 时有值 |
+| `pre_consumed_quota` | number | 预扣费额度（仅强化克隆有值） |
+| `created_at` / `updated_at` | number | Unix 秒 |
 
-> `created_at` / `updated_at` are **second**-level timestamps (10 digits), not milliseconds.
+> `created_at` / `updated_at` 是**秒**级时间戳（10 位），不是毫秒。
 
-### 3.4 Common errors
+### 3.4 常见错误
 
-| HTTP | message | Cause and handling |
+| HTTP | message | 原因与处理 |
 | --- | --- | --- |
-| 200 | `one of file_path, file_base64, or file_url is required` | No audio content was included |
-| 200 | `Uploaded audio is too short (currently 2.4 seconds). Minimum duration is 6 seconds.` | The sample is too short; use ≥6 s (≥10 s recommended) |
-| 200 | `This audio matches an existing recording in our catalog.` | The sample closely matches an existing recording in the catalogue; use a different clean dry vocal |
-| 200 | `upload succeeded without clip or account identity` | The platform reply was abnormal; retry |
-| 200 | `audio file exceeds 30 MB limit` | Over the server limit (for customer use, keep it to 10 MB) |
-| 401 | `invalid token` | Wrong API key |
+| 200 | `one of file_path, file_base64, or file_url is required` | 没有带上音频内容 |
+| 200 | `Uploaded audio is too short (currently 2.4 seconds). Minimum duration is 6 seconds.` | 样本太短，换 ≥6 秒（建议 ≥10 秒） |
+| 200 | `This audio matches an existing recording in our catalog.` | 样本与曲库已有录音高度相似，换一段干净的干声 |
+| 200 | `upload succeeded without clip or account identity` | 平台回包异常，重试 |
+| 200 | `audio file exceeds 30 MB limit` | 超过服务端上限（对客实际请按 10MB 控制） |
+| 401 | `无效的令牌` | API Key 错误 |
 
-### 3.5 Enhanced clone (`enhanced=true`)
+### 3.5 强化克隆（`enhanced=true`）
 
-For cases where "the voice sample itself carries copyrighted lyrics / an enhanced upload is needed". Priced at the enhanced upload price (¥10 per call by default, refunded automatically on failure):
+用于「音色样本本身带有版权歌词 / 需要做加强上传」的场景，价格按强化上传价（默认 10 元/次，失败自动退款）：
 
-- The response is immediately `status=processing` + `task_id` (there is no `clip_id` yet) and it runs asynchronously;
-- While it runs, use `GET /api/music/voice-profile/{voice_id}` to check progress, which returns `progress_percent` / `progress_stage` / `progress_message`;
-- On completion `status` becomes `ready` and `clip_id`, `audio_url`, `image_url` are filled in;
-- On failure `status=failed` and `error_message` reads like "the enhanced upload failed, the charge has been refunded automatically, please try again later";
-- An enhanced clone takes noticeably longer than a standard one (minutes), so do not wait for it with a synchronous timeout.
+- 返回立刻是 `status=processing` + `task_id`（此时还没有 `clip_id`），异步执行；
+- 处理期间用 `GET /api/music/voice-profile/{voice_id}` 查进度，会返回 `progress_percent` / `progress_stage` / `progress_message`；
+- 完成后 `status` 变 `ready`，`clip_id`、`audio_url`、`image_url` 补齐；
+- 失败则 `status=failed`，`error_message` 形如「强化上传失败，费用已自动退回，请稍后重试。」；
+- 强化克隆耗时明显长于普通创建（分钟级），请勿用同步超时逻辑等待。
 
 ```bash
 curl -sS -X POST "https://www.suno-api.io/api/music/voice-profile/create" \
   -H "Authorization: Bearer $API_KEY" \
-  -F "file=@./my-voice.mp3" -F "title=My voice" -F "enhanced=true"
+  -F "file=@./my-voice.mp3" -F "title=我的音色" -F "enhanced=true"
 ```
 
 ---
 
-## 4. Create a voice from existing audio
+## 4. 用已有音频创建音色
 
-If you would rather not upload again: copy a piece of audio you have **already uploaded or already generated** straight into a voice. Free and idempotent.
+如果你不想重新上传：把自己**已经上传或已经生成**的一段音频直接复制成音色。免费、幂等。
 
 ```http
 POST /api/music/voice-profile/create-from-clip
@@ -361,20 +361,20 @@ Content-Type: application/json
 
 {
   "source_song_id": "97ee62fe-56cd-473f-a2f5-c66ac0766a2e",
-  "title": "Xu Qing Qiang",
+  "title": "徐清 强",
   "client_request_id": "vp-clip-1789…"
 }
 ```
 
-- `source_song_id`: the clip id of a **completed** piece of audio on your account (the same as the song's `song_id`).
-- Resubmitting the same clip does not create a new record; it returns the existing voice directly with `reused: true` (measured).
+- `source_song_id`：你名下一段**已完成**音频的 clip id（等同于歌曲的 `song_id`）。
+- 同一个 clip 重复提交不会新建记录，直接返回已有音色并带 `reused: true`（实测）。
 
-The response is every field from §3.3 plus two read-only fields:
+响应 = §3.3 的全部字段，另加两个只读字段：
 
-| Field | Notes |
+| 字段 | 说明 |
 | --- | --- |
-| `reused` | `true` = this audio was already your voice and is being reused |
-| `source_type` | Where the audio came from: `generate` / `custom_generate` / `voice_generate` / `upload_source` / `enhanced_upload` |
+| `reused` | `true` = 这个音频之前已经是你的音色，本次直接复用 |
+| `source_type` | 该音频的来源类型：`generate` / `custom_generate` / `voice_generate` / `upload_source` / `enhanced_upload` |
 
 ```json
 {
@@ -382,7 +382,7 @@ The response is every field from §3.3 plus two read-only fields:
   "data": {
     "voice_id": "vp_20260926081712557959800Z5gvlt",
     "clip_id": "97ee62fe-56cd-473f-a2f5-c66ac0766a2e",
-    "title": "Xu Qing Qiang",
+    "title": "徐清 强",
     "status": "ready",
     "enhanced": true,
     "reused": true,
@@ -391,19 +391,19 @@ The response is every field from §3.3 plus two read-only fields:
 }
 ```
 
-Errors (`message` as returned; showing or localising it directly is recommended):
+错误（`message` 原文，建议直接展示或做本地化）：
 
-| message | Meaning |
+| message | 含义 |
 | --- | --- |
-| `source audio not found` | The clip does not exist or is not yours |
-| `source audio is invalid` | That audio is still generating / is an intermediate product and not yet usable |
-| `source_song_id is required` | `source_song_id` was not sent |
+| `source audio not found` | clip 不存在或不属于你 |
+| `source audio is invalid` | 该音频还在生成中 / 是中间产物，尚不可用 |
+| `source_song_id is required` | 没传 `source_song_id` |
 
 ---
 
-## 5. Voice list / detail / delete
+## 5. 音色列表 / 详情 / 删除
 
-### 5.1 List
+### 5.1 列表
 
 ```http
 GET /api/music/voice-profile/list
@@ -415,29 +415,29 @@ GET /api/music/voice-profile/list?include_deleted=true
   "success": true,
   "message": "",
   "data": {
-    "items": [ { "voice_id": "vp_…", "title": "My voice", "status": "ready", "audio_url": "…", "image_url": "…" } ],
+    "items": [ { "voice_id": "vp_…", "title": "我的音色", "status": "ready", "audio_url": "…", "image_url": "…" } ],
     "total": 1
   }
 }
 ```
 
-The fields are exactly those of §3.3. Deleted voices are not returned by default.
+字段与 §3.3 完全一致。默认不返回已删除的音色。
 
-### 5.2 Detail
+### 5.2 详情
 
 ```http
 GET /api/music/voice-profile/{voice_id}
 ```
 
-Returns a single voice object (`data` is the object itself, not an array). While an enhanced clone is running it additionally carries:
+返回单个音色对象（`data` 为对象本身，不是数组）。强化克隆在处理中时，会额外带上：
 
-| Field | Notes |
+| 字段 | 说明 |
 | --- | --- |
-| `progress_percent` | Integer from 0 to 100 |
-| `progress_stage` | Stage identifier, for example `media_preparing` |
-| `progress_message` | Progress text to show the user |
+| `progress_percent` | 0–100 的整数 |
+| `progress_stage` | 阶段标识，例如 `media_preparing` |
+| `progress_message` | 给用户看的中文进度文案 |
 
-### 5.3 Delete
+### 5.3 删除
 
 ```http
 POST /api/music/voice-profile/delete
@@ -450,59 +450,59 @@ Content-Type: application/json
 { "success": true, "message": "", "data": { "voice_id": "vp_2026…", "status": "deleted" } }
 ```
 
-- After deletion the voice disappears from the list and **can no longer be used for new covers**: submitting with that `voice_id` returns 400 (see §6.4).
-- **Songs already generated with it are completely unaffected**; playback, download, extend, replace and separation all work as before.
-- Deleting a non-existent voice, or one that is not on this account, returns `{"success":false,"message":"voice not found"}`.
+- 删除后音色从列表里消失，**不能再用于新的翻唱**：继续拿这个 `voice_id` 提交会返回 400（见 §6.4）。
+- **已经用它生成过的歌完全不受影响**，播放、下载、续写、替换、分轨照旧。
+- 删除不存在的音色、或不属于本账号的音色，返回 `{"success":false,"message":"voice not found"}`。
 
 ---
 
-## 6. Cover with a voice (the core endpoint)
+## 6. 用音色翻唱（核心接口）
 
 ```http
 POST /api/music/voice-profile/cover
 Content-Type: application/json
 ```
 
-One submission **generates 2 songs** (the same as ordinary generation).
+一次提交 **生成 2 首**（与普通生成一致）。
 
-### 6.1 Two scenarios
+### 6.1 两种场景
 
-| Scenario | Trigger | Notes |
+| 场景 | 触发条件 | 说明 |
 | --- | --- | --- |
-| **A. Cover a chosen song** | `song_clip_id` was sent | Sings that song with your voice (melody / rhythm / sections follow the original; the vocal becomes your voice) |
-| **B. Sing a new song with the voice** | `song_clip_id` not sent | Only the voice + lyrics (optional) + style requirements; the model composes a brand-new melody in that style and sings it |
+| **A 翻唱指定歌曲** | 传了 `song_clip_id` | 用你的音色去唱这首歌（旋律 / 节奏 / 段落沿用原曲，人声换成你的音色） |
+| **B 用音色唱新歌** | 不传 `song_clip_id` | 只给音色 + 歌词（可选）+ 风格要求，让模型按风格全新创作旋律后演唱 |
 
-The `resolved_scene` in the response echoes `cover` or `sing`, so you can confirm which route was taken.
+响应里的 `resolved_scene` 会回显 `cover` 或 `sing`，便于你确认走了哪条路。
 
-### 6.2 Request fields
+### 6.2 请求字段
 
-| Field | Type | Required | Default | Notes |
+| 字段 | 类型 | 必填 | 默认 | 说明 |
 | --- | --- | --- | --- | --- |
-| `model` | string | **Yes** | — | Customer-facing model name, see §6.5. **Omitting it returns `model is required` (HTTP 500)** |
-| `voice_id` | string | One of the two | — | Voice ID (`vp_…`); must be `status=ready` |
-| `voice_clip_id` | string | One of the two | — | The voice's clip id works too; when both are sent `voice_id` wins |
-| `song_clip_id` | string | No | empty | Clip id (`song_id`) of the song to cover. Not sent = scenario B |
-| `lyrics` | string | No | empty | Full lyrics, **sent character for character with no rewriting or truncation**; ≤ 3000 characters |
-| `cover_requirements` | string | No | empty | Cover instructions in natural language, for example "articulate more clearly". They are concatenated into a fixed prompt |
-| `style_requirements` | string | No | empty | Style requirements, for example "slow folk, acoustic guitar" |
-| `title` | string | No | empty | The title of these two finished songs in the workspace (it affects the `song_title` returned by later queries) |
-| `negative_tags` | string | No | empty | Excluded styles, for example `electronic, rap`; ≤ 1000 characters |
-| `vocal_gender` | string | No | empty | `m` / `f` (also accepts `male` / `female`); empty = any |
-| `duration` | number | No | empty | Desired length in seconds, **an integer from 1 to 480**; empty = the platform decides. **The platform's practical minimum is about 30 s**: smaller values still produced roughly 30-second songs in testing |
-| `audio_weight` | number | No | **0.85** | Audio Influence, a decimal from 0 to 1. Higher values stay closer to the voice sample |
-| `style_weight` | number | No | empty | Style influence, a decimal from 0 to 1 |
-| `weirdness_constraint` | number | No | empty | Creativity, a decimal from 0 to 1 (if your UI uses percentages, divide by 100 first) |
-| `variety` | number | No | empty | Variety, **an integer from 0 to 4** (not a percentage), supported on v6 models only |
-| `max_mode` | boolean | No | `false` | Max Mode, price ×2 |
-| `client_request_id` | string | No | empty | Submission identifier, written into the server-side task record for troubleshooting (**no de-duplication**) |
+| `model` | string | **是** | — | 对客模型名，见 §6.5。**不传会报 `model is required`（HTTP 500）** |
+| `voice_id` | string | 二选一 | — | 音色 ID（`vp_…`），必须 `status=ready` |
+| `voice_clip_id` | string | 二选一 | — | 也可以直接用音色的 clip id；两者都传时以 `voice_id` 为准 |
+| `song_clip_id` | string | 否 | 空 | 要翻唱的那首歌的 clip id（`song_id`）。不传 = 场景 B |
+| `lyrics` | string | 否 | 空 | 歌词全文，**逐字上送，不做改写 / 截断**；≤ 5000（v6 档，按 UTF-16 码元） |
+| `cover_requirements` | string | 否 | 空 | 翻唱要求（自然语言），例如「咬字更清晰一些」。会拼进固定提示词 |
+| `style_requirements` | string | 否 | 空 | 风格要求，例如「慢速民谣，木吉他」 |
+| `title` | string | 否 | 空 | 这两首成品在工作区里的标题（会影响后续查询返回的 `song_title`） |
+| `negative_tags` | string | 否 | 空 | 排除风格，例如 `电子, 说唱`；≤ 1000 字符 |
+| `vocal_gender` | string | 否 | 空 | `m` / `f`（也接受 `male` / `female`）；空 = 不限 |
+| `duration` | number | 否 | 空 | 期望时长（秒），**1–480 的整数**；空 = 平台自动。**平台实际最短约 30 秒**：填更小的值实测也只能得到约 30 秒的成品 |
+| `audio_weight` | number | 否 | **0.85** | 音频参考度，0–1 小数。越高越贴近音色样本 |
+| `style_weight` | number | 否 | 空 | 风格影响，0–1 小数 |
+| `weirdness_constraint` | number | 否 | 空 | 创意度，0–1 小数（界面若用百分比，请先除以 100） |
+| `variety` | number | 否 | 空 | 多样性，**0–4 的整数**（不是百分比），仅 v6 系列支持 |
+| `max_mode` | boolean | 否 | `false` | Max Mode，价格 ×2 |
+| `client_request_id` | string | 否 | 空 | 提交标识，写入服务端任务记录用于排查（**不做去重**） |
 
-**Sending the header `X-Create-Ui-Client-Request-Id: <the same submission id>` as well is recommended**: only that is written into the server-side task record and serves as the key for later investigation (see §1.5).
+**建议同时带上请求头 `X-Create-Ui-Client-Request-Id: <同一个提交 id>`**：它才会写进服务端任务记录，是事后排查的主键（详见 §1.5）。
 
-Units to watch: `audio_weight` / `style_weight` / `weirdness_constraint` are **decimals from 0 to 1**, `variety` is an **integer from 0 to 4**, `duration` is in **seconds**. Mixing them up leads to rejection or odd results.
+量纲提醒：`audio_weight` / `style_weight` / `weirdness_constraint` 是 **0–1 小数**，`variety` 是 **0–4 整数**，`duration` 是**秒**。混用会被拒绝或效果异常。
 
-Lyrics are optional in scenario B (the model handles it itself), but always send `lyrics` when you need specific words sung.
+场景 B 的歌词可选（模型会自行处理），但要唱指定内容时请务必传 `lyrics`。
 
-### 6.3 Response
+### 6.3 响应
 
 ```json
 {
@@ -524,7 +524,7 @@ Lyrics are optional in scenario B (the model handles it itself), but always send
         "audio_url": "",
         "play_url": "https://media.suno-api.io/play/0f2a…?expires=…&signature=…",
         "lyrics": "",
-        "description": "[Task] This is a cover. … (the server's fixed structural part + the cover/style requirements you filled in)"
+        "description": "【任务】这是一次翻唱。…（服务端固定结构段 + 你填写的翻唱/风格要求）"
       },
       {
         "song_id": "7c91…",
@@ -538,50 +538,50 @@ Lyrics are optional in scenario B (the model handles it itself), but always send
 }
 ```
 
-Key points:
+要点：
 
-1. Identify the finished tracks with **`clips[].song_id`** (this endpoint returns no `id` field).
-2. **You get 2 `song_id` values immediately**, while `status` is still `processing` (meaning only that they were accepted) and `audio_url` is empty; you must poll to `completed` before downloading. `play_url` is the platform's preview stream, which may already appear at submission time and will expire.
-3. `description` is the prompt the server ultimately sends (the fixed structural part + the `cover_requirements` / `style_requirements` you filled in); it is very handy when investigating results.
-4. `source_updates` is the server's media handling result and can be ignored by the client.
-5. The `title` you send is written into the server-side task record and shows up as `song_title` in later queries; `clips[].song_title` in the submission response is usually empty, which is normal.
+1. 成品标识用 **`clips[].song_id`**（本接口不回 `id` 字段）。
+2. **立刻拿到 2 个 `song_id`**，此时 `status` 还是 `processing`（只代表已受理），`audio_url` 为空；要轮询到 `completed` 才能下载。`play_url` 是平台试听流，提交阶段就可能出现，会过期。
+3. `description` 是服务端最终上送的提示词（固定结构段 + 你填写的 `cover_requirements` / `style_requirements`），排查效果时很好用。
+4. `source_updates` 是服务端的素材处理结果，客户端可忽略。
+5. 你传的 `title` 会写进服务端任务记录，在后续查询里体现为 `song_title`；提交回包的 `clips[].song_title` 通常为空，属正常。
 
-### 6.4 Errors
+### 6.4 错误
 
 ```json
-{ "error": { "message": "this voice does not exist or has been deleted (voice_id=vp_xxx)…", "type": "new_api_error", "param": "", "code": "invalid_request" } }
+{ "error": { "message": "该音色不存在或已被删除（voice_id=vp_xxx）…", "type": "new_api_error", "param": "", "code": "invalid_request" } }
 ```
 
-| HTTP | message | Cause |
+| HTTP | message | 原因 |
 | --- | --- | --- |
-| 500 | `model is required` | The body is missing `model` (a required field for channel selection) |
-| 400 | `voice_id is required and must be a ready voice` | `voice_id` was not sent, or a placeholder value / a not-ready voice was sent |
-| 400 | `this voice does not exist or has been deleted (voice_id=vp_xxx)…` | The voice was deleted, does not exist, or is not on the current account. Use another available voice or create a new one |
-| 400 | `this voice has been deleted (voice_id=vp_xxx)…` | When passing media directly via `voice_clip_id`, the voice behind that media has been deleted; same handling as above |
-| 400 | `voice is not ready yet (status=processing)` | The voice is still being created; wait for `ready` and try again |
-| 400 | `song_clip_id must be a real completed clip` | `song_clip_id` is a placeholder / unfinished |
-| 400 | `song_clip_id must differ from the voice clip` | The cover target cannot be the voice sample itself |
-| 400 | `audio_weight must be a number between 0 and 1` | Wrong unit for the slider (a percentage was sent) |
-| 400 | `duration must be an integer between 1 and 480 seconds` | The duration is not an integer from 1 to 480 |
-| 400 | `vocal_gender must be one of m, f, male, female` | Invalid gender value |
-| 400 | `variety must be an integer between 0 and 4` / `variety is only supported on v6 models` | Invalid variety value or unsupported model |
+| 500 | `model is required` | 请求体缺 `model`（这是渠道选择的必需字段） |
+| 400 | `voice_id is required and must be a ready voice` | 没传 `voice_id`，或传的是占位值 / 未就绪音色 |
+| 400 | `该音色不存在或已被删除（voice_id=vp_xxx）…` | 音色已删除、不存在，或不属于当前账号。请改用其他可用音色，或重新创建一个音色 |
+| 400 | `该音色已被删除（voice_id=vp_xxx）…` | 用 `voice_clip_id` 直传素材时，这段素材对应的音色已删除；处理方式同上 |
+| 400 | `voice is not ready yet (status=processing)` | 音色还在创建中，等 `ready` 再试 |
+| 400 | `song_clip_id must be a real completed clip` | `song_clip_id` 是占位符 / 未完成 |
+| 400 | `song_clip_id must differ from the voice clip` | 翻唱对象不能等于音色样本本身 |
+| 400 | `audio_weight must be a number between 0 and 1` | 滑块量纲用错（传了百分数） |
+| 400 | `duration must be an integer between 1 and 480 seconds` | 时长不是 1–480 的整数 |
+| 400 | `vocal_gender must be one of m, f, male, female` | 性别取值非法 |
+| 400 | `variety must be an integer between 0 and 4` / `variety is only supported on v6 models` | 多样性取值或模型不支持 |
 
-An insufficient balance returns a billing error right at submission and never leaves a half-finished task behind.
+余额不足会在提交阶段直接返回计费错误，不会产生半成品任务。
 
-### 6.5 Available models (customer-facing names)
+### 6.5 可用模型（对客模型名）
 
-| Customer-facing model name | Notes |
+| 对客模型名 | 说明 |
 | --- | --- |
-| `suno-v6` | Default, recommended |
-| `suno-v6-wild` | Wilder |
-| `suno-v6-mini` | Lightweight |
+| `suno-v6` | 默认，推荐 |
+| `suno-v6-wild` | 更奔放 |
+| `suno-v6-mini` | 轻量 |
 
 
 ---
 
-## 7. Polling progress
+## 7. 查询进度
 
-### 7.1 Batch query (recommended)
+### 7.1 批量查询（推荐）
 
 ```http
 POST /api/music/query
@@ -590,14 +590,14 @@ Content-Type: application/json
 { "model": "suno-v6", "song_ids": "id1,id2" }
 ```
 
-- `song_ids` is a **comma-separated string** (not an array).
-- The response is a **bare array** (just `[...]`, with no `success` / `data` wrapper):
+- `song_ids` 是**英文逗号分隔的字符串**（不是数组）。
+- 返回是**裸数组**（直接 `[...]`，没有 `success` / `data` 外壳）：
 
 ```json
 [
   {
     "song_id": "0f2a…",
-    "song_title": "Two Tigers",
+    "song_title": "两只老虎",
     "status": "completed",
     "audio_url": "https://suno-api-hk-1437223057.cos.ap-hongkong.myqcloud.com/assets/0f2a…-mp3.mp3",
     "cover_url": "https://cdn2.suno.ai/image_0f2a….jpeg",
@@ -607,7 +607,7 @@ Content-Type: application/json
     "play_url": "https://media.suno-api.io/play/…?expires=…&signature=…",
     "lyrics": "[Verse 1]…",
     "prompt": "[Verse 1]…",
-    "description": "[Task] This is a cover. … (the server's final prompt)",
+    "description": "【任务】这是一次翻唱。…（服务端最终提示词）",
     "style_tags": "…",
     "created_at": "2026-09-25T18:19:09.918Z",
     "video_url": ""
@@ -615,25 +615,25 @@ Content-Type: application/json
 ]
 ```
 
-| Field | Notes |
+| 字段 | 说明 |
 | --- | --- |
-| `status` | See §1.7; only `completed` counts as done |
-| `audio_url` | mp3 direct link; only populated once `completed` |
-| `cover_url` | Artwork address |
-| `duration` | Actual length in seconds |
-| `generation_type` | Songs produced by a voice cover are always `voice_profile_cover` |
-| `play_url` | Signed preview address (expires) |
-| `song_title` | Task title (the `title` you sent; if you sent none the server falls back) |
-| `lyrics` / `prompt` | Finished lyrics / original lyric text |
-| `description` | The final prompt the server sends (including the fixed structural part) |
-| `style_tags` | The final style description |
-| `created_at` | **An ISO 8601 string** (note this differs from the Unix seconds of the detail endpoint) |
+| `status` | 见 §1.7；`completed` 才算完成 |
+| `audio_url` | mp3 直链，`completed` 后才有值 |
+| `cover_url` | 封面地址 |
+| `duration` | 实际时长（秒） |
+| `generation_type` | 音色翻唱产出的歌固定是 `voice_profile_cover` |
+| `play_url` | 带签名试听地址（会过期） |
+| `song_title` | 任务标题（即你提交时传的 `title`；不传则由服务端兜底） |
+| `lyrics` / `prompt` | 成品歌词 / 歌词原文 |
+| `description` | 服务端最终上送的提示词（含固定结构段） |
+| `style_tags` | 最终风格描述 |
+| `created_at` | **ISO 8601 字符串**（注意与详情接口的 Unix 秒不同） |
 
-Polling advice: **every 5–10 seconds, with an overall timeout of 10–15 minutes** (the slowest measured cold account took about 4.5 minutes; a very small number take longer). Do not judge completion by whether `audio_url` is empty — use `status`.
+轮询建议：**间隔 5–10 秒，总超时 10–15 分钟**（冷账号最慢实测约 4 分半；极少数更久）。不要用 `audio_url` 是否空来判断完成，要用 `status`。
 
-> Compatibility note: this endpoint identifies songs by `song_id`; a few early responses contained an `id` field, so `row.song_id || row.id` is the safe way to read it.
+> 兼容提示：本接口以 `song_id` 为标识；早期个别响应里出现过 `id` 字段，稳妥写法是 `row.song_id || row.id`。
 
-### 7.2 Single song detail
+### 7.2 单首详情
 
 ```http
 GET /api/music/songs/{song_id}
@@ -644,7 +644,7 @@ GET /api/music/songs/{song_id}
   "success": true,
   "data": {
     "song_id": "0f2a…",
-    "title": "Two Tigers",
+    "title": "两只老虎",
     "status": "completed",
     "generation_type": "voice_profile_cover",
     "model": "suno-v6",
@@ -658,7 +658,7 @@ GET /api/music/songs/{song_id}
     "parameters": {
       "prompt": "[Verse 1]…",
       "style_tags": "…",
-      "title": "Two Tigers",
+      "title": "两只老虎",
       "model": "suno-v6",
       "generation_type": "voice_profile_cover",
       "source_song_id": "5b773e9a-…"
@@ -673,18 +673,18 @@ GET /api/music/songs/{song_id}
 }
 ```
 
-- Here `created_at` / `completed_at` are **Unix seconds** (unlike the ISO strings of the batch query, so clients should tell them apart).
-- `wav_url` / `video_url` are **this platform's download entries** (relative to the current domain) and a `GET` fetches the file; they are empty strings when the platform has not produced that asset.
-- `parameter_retention` says which submission parameters that song can still be traced to: `core_parameters_available=true` means the core parameters (lyrics / style / source) are queryable, while with `extended_parameters_available=false` the extended parameters listed above were not retained (voice covers are currently in this category).
+- `created_at` / `completed_at` 这里是 **Unix 秒**（与批量查询的 ISO 字符串不同，客户端注意区分）。
+- `wav_url` / `video_url` 是**本平台的下载入口**（相对当前域名），`GET` 即可取文件；平台没有该产物时为空串。
+- `parameter_retention` 说明该歌曲能追溯哪些提交参数：`core_parameters_available=true` 表示歌词 / 风格 / 来源等核心参数可查，`extended_parameters_available=false` 时上面列的扩展参数没有留存（音色翻唱目前属这一类）。
 
-### 7.3 My works list
+### 7.3 我的作品列表
 
 ```http
 GET /api/music/songs?p=1&page_size=20
-GET /api/music/songs?status=completed&q=keyword
+GET /api/music/songs?status=completed&q=关键词
 ```
 
-Pagination parameters: `p` (page number, starting at 1) / `page_size` (items per page; `ps` is a compatible spelling). Optional `status` and `q` (a title keyword). Sorted by creation time descending by default.
+分页参数：`p`（页码，从 1 开始）/ `page_size`（每页条数，兼容写法 `ps`）。可选 `status`、`q`（标题关键词）。默认按创建时间倒序。
 
 ```json
 {
@@ -696,7 +696,7 @@ Pagination parameters: `p` (page number, starting at 1) / `page_size` (items per
     "items": [
       {
         "song_id": "0f2a…",
-        "title": "Two Tigers",
+        "title": "两只老虎",
         "status": "completed",
         "generation_type": "voice_profile_cover",
         "model": "suno-v6",
@@ -711,30 +711,30 @@ Pagination parameters: `p` (page number, starting at 1) / `page_size` (items per
 }
 ```
 
-Use `generation_type=voice_profile_cover` to tell "songs produced by a voice cover" apart from other generation results.
+用 `generation_type=voice_profile_cover` 可以把「用音色翻唱产出的歌」与其他生成结果区分开。
 
 ---
 
-## 8. Downloading the finished tracks
+## 8. 下载成品
 
-### 8.1 Take the mp3 directly (recommended, free)
+### 8.1 直接取 mp3（推荐，免费）
 
-Any of these three works; pick one:
+三种都可以，任选其一：
 
-1. Use the `audio_url` from the query result (an object-storage direct link, the least work).
-2. `GET /api/music/download?song_id=<id>&kind=mp3` → returns the audio bytes directly (with the file name already in `Content-Disposition`).
-3. `POST /api/music/download-url` (to get a temporary signed address).
+1. 用查询结果里的 `audio_url`（对象存储直链，最省事）。
+2. `GET /api/music/download?song_id=<id>&kind=mp3` → 直接返回音频字节流（`Content-Disposition` 已带文件名）。
+3. `POST /api/music/download-url`（拿带签名的临时地址）。
 
 ```bash
 curl -sS -L "https://www.suno-api.io/api/music/download?song_id=0f2a…&kind=mp3" \
   -H "Authorization: Bearer $API_KEY" -o song.mp3
 ```
 
-`kind` values: `mp3` (equivalent to `song`) / `playback` (streaming) / `wav` / `video` / `lyrics` / `timestamped_lyrics`.
-`timestamped_lyrics` (`.lrc`) is currently available for only some songs; when it fails, generate the file yourself with the [timestamped lyrics API](current-lyrics-timeline.md).
-The response is the raw file stream, with `Content-Type` and `Content-Disposition` (file name) already set; the `wav_url` / `video_url` returned by `GET /api/music/songs/{song_id}` are the same entry point with `kind=wav|video`.
+`kind` 取值：`mp3`（等价于 `song`）/ `playback`（流式播放）/ `wav` / `video` / `lyrics` / `timestamped_lyrics`。
+其中 `timestamped_lyrics`（`.lrc`）目前仅部分歌曲支持，失败时请改用 [时间轴歌词 API](current-lyrics-timeline.md) 自行生成。
+响应直接是文件字节流，`Content-Type` 与 `Content-Disposition`（文件名）都已带好；`GET /api/music/songs/{song_id}` 返回的 `wav_url` / `video_url` 就是带上 `kind=wav|video` 的同一入口。
 
-### 8.2 Convert to wav / fetch lyrics / metadata (billed)
+### 8.2 转 wav / 取歌词 / 元数据（计费）
 
 ```http
 POST /api/music/free2
@@ -757,84 +757,84 @@ Content-Type: application/json
 }
 ```
 
-- `files` accepts: `mp3` / `wav` / `lyrics` / `metadata`, up to 10 songs at a time.
-- **Billed per successful song (¥0.2 each)**; a song that fails entirely is not charged, and a failed format appears only in `songs[].errors`.
-- To fetch files you already obtained before, first use the **free** `POST /api/music/free2/cached` (the same `song_ids` + `files`) to get archived addresses; `songs[].missing_files` in its response lists the formats that are not cached and must be prepared again.
+- `files` 支持：`mp3` / `wav` / `lyrics` / `metadata`，一次最多 10 首。
+- **按成功首数计费（0.2 元/首）**；整首失败不计费，某个格式失败只出现在 `songs[].errors`。
+- 重新下载之前已经取过的文件，可以先用 **免费** 的 `POST /api/music/free2/cached`（同样的 `song_ids` + `files`）取归档地址；返回里 `songs[].missing_files` 列出没有缓存、需要重新准备的格式。
 
 ---
 
-## 9. Price lookup
+## 9. 价格查询
 
 ```http
 GET /api/pricing/catalog
 ```
 
-A public endpoint requiring no authentication. Every unit price a customer needs to display is in `data.catalog.meta` (strings):
+公开接口，无需鉴权。对客要展示的单价都在 `data.catalog.meta`（字符串）：
 
-| Key | Meaning | Current value |
+| 键 | 含义 | 当前值 |
 | --- | --- | --- |
-| `generation_price` | Ordinary generation | 0.6 |
-| `voice_generation_price` | **Base price of a voice cover** | 1.2 |
-| `max_mode_factor` | Max Mode multiplier | 2 |
-| `enhanced_upload_price` | Enhanced clone / enhanced upload | 10 |
-| `voice_auto_verify_price` | Automatic voice verification | 5 |
-| `voice_long_term_clone_price` | Long-term voice cloning | 5 |
+| `generation_price` | 普通生成 | 0.6 |
+| `voice_generation_price` | **音色翻唱基准价** | 1.2 |
+| `max_mode_factor` | Max Mode 倍率 | 2 |
+| `enhanced_upload_price` | 强化克隆 / 强化上传 | 10 |
+| `voice_auto_verify_price` | 人声自动验证 | 5 |
+| `voice_long_term_clone_price` | 长期音色克隆 | 5 |
 
-Prices are adjusted in the back office, so **read them live rather than hard-coding them in the client**. The actual cover charge = `voice_generation_price` × (`max_mode_factor` again when `max_mode` is true).
-
----
-
-## 10. Limits and caveats
-
-1. **Upload size**: ≤ 10 MB (the server accepts more, but the entry gateway truncates oversized bodies at 10 MiB, which shows up as "rejected by Suno", so block it on your side first).
-2. **Sample duration**: at least 6 s, 10–60 s recommended; too short and the platform rejects it.
-3. **Sample content**: clean vocals; avoid anything closely matching an existing recording (the catalogue comparison rejects it).
-4. **Text limits**: `lyrics` ≤ 3000 characters; `style_requirements` / `negative_tags` / `title` are advised to stay within 1000 / 1000 / 100 characters respectively (style and cover requirements are concatenated into the prompt, so keep the total within 3000 characters).
-5. **Lyrics are not rewritten**: whatever you pass is what gets sung (character for character), with no local truncation.
-6. **Every song yields 2 tracks**; do not assume a single result.
-7. **Source audio is kept permanently**: deleting a voice does not clean up its source audio; this keeps later covers possible and keeps compliance traceable.
-8. **The voice must be ready**: a `processing` voice cannot be used for covers.
-9. **Request timeout**: for a cold account the first submission took up to about 4.5 minutes in testing, so set the client timeout to ≥ 6 minutes. Covers **do no request-level de-duplication**, so after a timeout check whether a new song has already appeared (§1.5) before deciding to resend.
-10. **Voice ownership**: voices belong to their creator; covers only accept voices that are **ready** and **not deleted**. A voice that does not exist, has been deleted, or belongs to another account returns 400: `this voice does not exist or has been deleted (voice_id=…)`.
+价格会在后台调整，**请实时读取，不要写死在客户端**。翻唱实际扣费 = `voice_generation_price` ×（`max_mode` 为真时再 × `max_mode_factor`）。
 
 ---
 
-## 11. FAQ
+## 10. 限制与注意事项
 
-**Q1. Does creating a voice cost anything?**
-Standard creation and "create from existing audio" are both free; only covers (¥1.2 / MAX ¥2.4) and enhanced clones (¥10 by default) are billed.
-
-**Q2. Can I use a finished song with backing as the voice sample?**
-Not recommended. Anything with music, or closely matching an existing recording in the catalogue, is rejected by the platform (`This audio matches an existing recording in our catalog.`). Use a purely vocal dry recording.
-
-**Q3. Why is `audio_url` empty after I submit a cover?**
-Submission only means it was accepted and `status` is still `processing`. A playable/downloadable address appears once you have polled `/api/music/query` to `status=completed`.
-
-**Q4. Do I need to send lyrics in scenario B (no `song_clip_id`)?**
-Optional. Send `lyrics` to sing specific content; without it the model handles things itself, but with less control.
-
-**Q5. Can audio the customer uploaded be used as a voice directly?**
-Yes: via the `file_url` form of `create`, or by uploading it as a song first and then calling `create-from-clip`.
-
-**Q6. Is money refunded if it fails?**
-A request that is outright rejected (bad parameters / platform error) **is not charged**, as measured; a task that was accepted but ultimately fails returns the pre-charged amount. On terminal failure the task reports `status=failed` plus `error_message`.
-
-**Q7. After deleting a voice, can I still listen to songs previously generated with it?**
-Yes. Deletion only affects whether that voice can be used for **new** covers.
-
-**Q8. How long a song can I cover at once?**
-`duration` takes 1–480 seconds; if you omit it the platform decides from the original song / the media. Note that **the platform's finished tracks are at least about 30 seconds**: passing a smaller value still produced 29.96 / 29.76 seconds in testing.
+1. **上传体积**：≤ 10MB（服务端可接受的上限更高，但入口网关在 10MiB 处会截断超大请求体，表现为「被 Suno 拒绝」，请自行先拦）。
+2. **样本时长**：最少 6 秒，建议 10–60 秒；过短会被平台拒绝。
+3. **样本内容**：干净人声，避免与已有录音高度相似（会被曲库比对拒绝）。
+4. **文本上限**：`lyrics` ≤ 5000、`style_requirements` ≤ 1000、`negative_tags` ≤ 1000、`title` ≤ 100（均按 UTF-16 码元计数，emoji 算 2）。
+5. **歌词不做改写**：传入什么就唱什么（逐字一致），不做本地截断。
+6. **每首歌固定 2 首产出**，不要假设返回 1 首。
+7. **源音频永久保留**：音色删除了源音频也不清理；这是为了保证后续翻唱可用与合规追溯。
+8. **音色必须 ready**：`processing` 的音色不能用于翻唱。
+9. **请求超时**：冷账号首次提交最慢实测约 4 分半，客户端超时请设 ≥ 6 分钟。翻唱**不做请求级去重**，超时后请先核对是否已经产生新歌（§1.5），再决定是否重发。
+10. **音色归属**：音色按创建者归属管理；翻唱只接受**已就绪**（`ready`）且**未删除**的音色。不存在、已删除或不属于本账号，都会返回 400：`该音色不存在或已被删除（voice_id=…）`。
 
 ---
 
-## Appendix A: complete example (Node.js, with polling and download)
+## 11. 常见问题（FAQ）
+
+**Q1. 创建音色会不会扣钱？**
+普通创建与「从已有音频创建」都免费；只有翻唱（1.2 元 / MAX 2.4 元）和强化克隆（默认 10 元）计费。
+
+**Q2. 音色样本能不能用带伴奏的成品歌？**
+不建议。带音乐或与曲库已有录音高度相似会被平台拒绝（`This audio matches an existing recording in our catalog.`）。请用纯人声干声。
+
+**Q3. 为什么提交翻唱后 `audio_url` 是空的？**
+提交只代表已受理，`status` 还是 `processing`。轮询 `/api/music/query` 到 `status=completed` 后才有可播 / 可下载地址。
+
+**Q4. 场景 B（不传 `song_clip_id`）要不要传歌词？**
+可选。要唱指定内容就传 `lyrics`；不传时模型会自行处理，但可控性较差。
+
+**Q5. 客户自己上传的音频能直接当音色吗？**
+可以：`create` 的 `file_url` 形态，或先上传成歌曲再调 `create-from-clip`。
+
+**Q6. 失败了会退钱吗？**
+被直接拒绝的请求（参数错误 / 平台报错）实测**不扣费**；已受理但最终失败的任务会退回预扣金额。终态失败时任务返回 `status=failed` 与 `error_message`。
+
+**Q7. 删除音色后，之前用它生成的歌还能听吗？**
+能。删除只影响这个音色能否继续用于**新的**翻唱。
+
+**Q8. 一次能翻唱多长的歌？**
+`duration` 传 1–480 秒；不传则由平台按原曲 / 素材自动决定。注意**平台的成品最短约 30 秒**：填小于 30 秒的值，实测出来仍是 29.96 / 29.76 秒。
+
+---
+
+## 附录 A：完整调用示例（Node.js，含轮询与下载）
 
 ```js
 const BASE = "https://www.suno-api.io";
 const KEY = process.env.SUNO_API_KEY;
 const H = { Authorization: `Bearer ${KEY}` };
 
-// ① Create the voice (multipart)
+// ① 创建音色（multipart）
 async function createVoice(filePath, title) {
   const fd = new FormData();
   fd.set("file", new Blob([await (await import("node:fs/promises")).readFile(filePath)], { type: "audio/mpeg" }), "my-voice.mp3");
@@ -848,7 +848,7 @@ async function createVoice(filePath, title) {
   return body.data; // { voice_id, status, audio_url, ... }
 }
 
-// ② Cover
+// ② 翻唱
 async function cover(voiceId, songClipId, lyrics) {
   const submissionId = `vp-cover-${Date.now()}`;
   const res = await fetch(`${BASE}/api/music/voice-profile/cover`, {
@@ -859,7 +859,7 @@ async function cover(voiceId, songClipId, lyrics) {
       voice_id: voiceId,
       song_clip_id: songClipId || "",
       lyrics: lyrics || "",
-      style_requirements: "slow folk, acoustic guitar",
+      style_requirements: "慢速民谣，木吉他",
       audio_weight: 0.85,
       max_mode: false,
       client_request_id: submissionId,
@@ -870,7 +870,7 @@ async function cover(voiceId, songClipId, lyrics) {
   return body.data; // { resolved_scene, clips: [{ song_id, status }] }
 }
 
-// ③ Poll to completion (every 5 seconds, at most 15 minutes)
+// ③ 轮询到完成（5 秒一次，最多 15 分钟）
 async function waitUntilCompleted(songIds) {
   const deadline = Date.now() + 15 * 60 * 1000;
   while (Date.now() < deadline) {
@@ -879,22 +879,22 @@ async function waitUntilCompleted(songIds) {
       headers: { ...H, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "suno-v6", song_ids: songIds.join(",") }),
     });
-    const songs = await res.json(); // bare array
+    const songs = await res.json(); // 裸数组
     if (songs.every((s) => s.status === "completed" || s.status === "failed")) return songs;
     await new Promise((r) => setTimeout(r, 5000));
   }
   throw new Error("timeout waiting for cover");
 }
 
-// ④ Download
+// ④ 下载
 async function download(songId, outPath) {
   const res = await fetch(`${BASE}/api/music/download?song_id=${encodeURIComponent(songId)}&kind=mp3`, { headers: H });
   if (!res.ok) throw new Error(`download failed: ${res.status}`);
   (await import("node:fs/promises")).writeFile(outPath, Buffer.from(await res.arrayBuffer()));
 }
 
-const voice = await createVoice("./my-voice.mp3", "My voice");
-const result = await cover(voice.voice_id, "5b773e9a-a035-4134-a4a4-29c9961d3ccb", "[Verse 1]\nlyrics…");
+const voice = await createVoice("./my-voice.mp3", "我的音色");
+const result = await cover(voice.voice_id, "5b773e9a-a035-4134-a4a4-29c9961d3ccb", "[Verse 1]\n歌词…");
 const ids = result.clips.map((c) => c.song_id);
 const songs = await waitUntilCompleted(ids);
 for (const [i, s] of songs.entries()) {
@@ -902,10 +902,10 @@ for (const [i, s] of songs.entries()) {
 }
 ```
 
-## Appendix B: change log
+## 附录 B：变更记录
 
-| Date | Change |
+| 日期 | 变更 |
 | --- | --- |
-| 2026-10-15 | Deletion semantics stated plainly (§5.3); a cover with a "deleted / unauthorised" `voice_id` now returns 400 before any pre-charge, with the error table and FAQ updated to match (alongside the voice-deletion gate shipped that day) |
-| 2026-10-13 | Added the "why we recommend this chain" note at the top: according to extensive real-user testing, songs generated through this chain keep the original voice notably better |
-| 2026-09-26 | First version: create a voice (three input forms) / create from existing audio / list, detail, delete / voice cover (scenarios A and B) / progress polling / download / price lookup, with measured evidence |
+| 2026-10-15 | 删除语义写实（§5.3）；翻唱对「已删除 / 越权」的 `voice_id` 会在预扣费前直接 400，错误表与 FAQ 同步（配合当日上线的音色删除门禁） |
+| 2026-10-13 | 开头补充「为什么推荐本链路」说明：据大量用户实际评测，本链路生成歌曲的原声还原度较高 |
+| 2026-09-26 | 首版：创建音色（三种入参）/ 已有音频创建 / 列表详情删除 / 音色翻唱（A、B 场景）/ 进度查询 / 下载 / 价格读取，含实测证据 |

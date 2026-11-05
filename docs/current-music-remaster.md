@@ -1,40 +1,40 @@
-# Remaster API
+# 母带重制 API（Remaster）
 
-## Endpoint description
+## 接口说明
 
-Remaster regenerates a completed song as a "remastered version" with better audio quality. It returns 2 versions at once, and the service automatically appends `(Remastered)` to the title.
+母带重制用于把一首已完成的歌曲重新生成一版音质更好的「重制版本」，一次返回 2 个版本，系统会自动为标题追加 `(Remastered)`。
 
-**Endpoint**: `POST /api/music/remaster`
+**接口地址**：`POST /api/music/remaster`
 
-**Billing**: Paid, billed by the requested model (default `suno-v6`, 0.6 CNY per call); the amount actually charged follows the back-office price configuration.
+**计费**：收费，按请求模型计费（默认 `suno-v6`，0.6 元/次），实际扣费以后台价格配置为准。
 
-**About the model**: remastering uses a platform-managed model that is not affected by `model`; the `model` in the request is only used for pricing and channel selection, and passing `suno-v6` explicitly is recommended.
+**模型说明**：重制使用平台固定维护的模型，不随 `model` 变化；请求里的 `model` 只用于计价与渠道选择，建议显式传入 `suno-v6`。
 
-> **Wait times and timeouts (important)**: this is a synchronous endpoint — **the order is only accepted and handed to remastering when the response arrives**. Set your client timeout to 300 seconds or more; no response does not mean nothing was remastered, and do not retry immediately after a timeout (that duplicates the order and charges again). If the connection dropped, confirm later with `GET /api/music/songs`.
+> **等待时间与超时（重要）**：本接口是同步接口，**响应返回时才代表订单已被受理并提交重制**。请把客户端超时设置为 300 秒以上；未收到响应不等于没有重制，超时后请勿立即重试（会重复下单、重复扣费）。连接中断可稍后用 `GET /api/music/songs` 确认。
 
-## Authentication
+## 认证
 
-| Parameter | Type | Required | Notes |
+| 参数名 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| Authorization | string | yes | `Bearer YOUR_API_KEY` |
-| Content-Type | string | yes | `application/json` |
+| Authorization | string | 是 | `Bearer YOUR_API_KEY` |
+| Content-Type | string | 是 | `application/json` |
 
-## Request parameters
+## 请求参数
 
-| Parameter | Type | Required | Default | Notes |
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |---|---|---|---|---|
-| song_id | string | yes | - | The source song ID to remaster; it must be completed and accessible to the current API key |
-| model | string | no | suno-v6 | Customer-facing model name: `suno-v6`, `suno-v6-wild` or `suno-v6-mini`; used only for pricing and channel |
-| variation_category | string | no | normal | Variation strength: `subtle`, `normal`, `high` (the legacy value `low` equals `subtle`) |
-| style_profile | string | no | boost | Tonal style: `natural`, `boost`, `clarity` |
-| tags | string | no | - | Reserved field; when non-empty it is handled by the platform |
-| source_audio_url | string | no | - | Source audio address, when the source song comes from an external account |
-| source_file_name | string | no | - | Source file name, when the source song comes from an external account |
-| source_title | string | no | - | Source title, when the source song comes from an external account |
+| song_id | string | 是 | - | 要重制的来源歌曲 ID，必须已完成且当前 API Key 可访问 |
+| model | string | 否 | suno-v6 | 对客模型名：`suno-v6`、`suno-v6-wild` 或 `suno-v6-mini`，仅用于计价与渠道 |
+| variation_category | string | 否 | normal | 变体强度：`subtle`、`normal`、`high`（旧值 `low` 等价于 `subtle`） |
+| style_profile | string | 否 | boost | 音色风格：`natural`、`boost`、`clarity` |
+| tags | string | 否 | - | 预留字段，非空时由平台处理 |
+| source_audio_url | string | 否 | - | 来源歌曲来自外部账号时，来源音频地址 |
+| source_file_name | string | 否 | - | 来源歌曲来自外部账号时，来源文件名 |
+| source_title | string | 否 | - | 来源歌曲来自外部账号时，来源标题 |
 
-`audio_id`, `source_clip_id` and `sourceClipId` are equivalent spellings of `song_id`; use any one of them.
+`audio_id`、`source_clip_id`、`sourceClipId` 是 `song_id` 的等价写法，任选一个即可。
 
-## Request example
+## 请求示例
 
 ```bash
 curl -X POST https://www.suno-api.io/api/music/remaster \
@@ -48,13 +48,13 @@ curl -X POST https://www.suno-api.io/api/music/remaster \
   }'
 ```
 
-For the default settings, pass only the source song — equivalent to `variation_category: normal` + `style_profile: boost`:
+只要默认档位时，只传来源歌曲即可，等价于 `variation_category: normal` + `style_profile: boost`：
 
 ```json
 { "model": "suno-v6", "song_id": "source_song_id" }
 ```
 
-## Response
+## 响应结果
 
 ```json
 {
@@ -64,12 +64,12 @@ For the default settings, pass only the source song — equivalent to `variation
     "clips": [
       {
         "song_id": "remastered_clip_id_1",
-        "song_title": "Source song title (Remastered)",
+        "song_title": "来源歌名 (Remastered)",
         "status": "processing"
       },
       {
         "song_id": "remastered_clip_id_2",
-        "song_title": "Source song title (Remastered)",
+        "song_title": "来源歌名 (Remastered)",
         "status": "processing"
       }
     ]
@@ -77,10 +77,10 @@ For the default settings, pass only the source song — equivalent to `variation
 }
 ```
 
-One call returns **2** remastered versions. Save both `clips[].song_id` values, then poll the [song query API](current-music-query.md) until `complete` before fetching the audio.
+一次返回 **2 个**重制版本。请保存两条 `clips[].song_id`，再用[歌曲查询 API](current-music-query.md)轮询到 `complete` 后取音频。
 
-## Notes
+## 注意事项
 
-- The source song must be completed and within the current API key's access scope; external source material is synchronised to the executing account automatically.
-- Remastering only redoes audio quality: to change style, arrangement or vocals, use [boost style](current-music-boost-style.md), [upload then cover](current-music-upload-cover.md) or the [Remix endpoints](current-music-mashup.md).
-- The larger `variation_category` is, the more the remastered version differs from the source song; before a real delivery, try a `normal` pass first and then go higher.
+- 来源歌曲必须已完成，并且属于当前 API Key 可访问的范围；外部来源素材会自动同步到执行账号。
+- 重制只做音质重制：想换风格、换编曲或换演唱，请用[风格增强](current-music-boost-style.md)、[上传后翻唱](current-music-upload-cover.md)或 [Remix 类接口](current-music-mashup.md)。
+- `variation_category` 越大，重制版本与来源歌的差异越明显；正式交付前建议用 `normal` 试一版再调高。
