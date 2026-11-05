@@ -576,7 +576,6 @@ Content-Type: application/json
 | `suno-v6-wild` | 更奔放 |
 | `suno-v6-mini` | 轻量 |
 
-请使用**对客模型名**（上面的名字）。`chirp-*` 是平台内部名称，不要直接使用。
 
 ---
 
