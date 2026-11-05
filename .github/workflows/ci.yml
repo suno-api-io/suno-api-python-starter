@@ -29,3 +29,12 @@ jobs:
       - name: Check CLI
         run: python sample.py --help
 
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - name: Check Node.js example
+        working-directory: examples/node
+        run: npm run check
+
