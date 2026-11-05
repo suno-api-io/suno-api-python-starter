@@ -6,6 +6,14 @@
 
 🟢 [Node.js Starter](./examples/node/README.md)
 
+## License
+
+- Source code and runnable examples: MIT License (`LICENSE`).
+- Documentation under `docs/`: CC BY 4.0 (`LICENSE-DOCS.txt`).
+- The website is the authoritative documentation version.
+- Trademarks, logos and third-party materials are excluded as described in
+  `NOTICE.md`.
+
 ## 简体中文
 
 一个用于演示 AI 音乐生成任务状态机的最小 Python 示例。
