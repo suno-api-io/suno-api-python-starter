@@ -1,341 +1,215 @@
-# Suno API Key 获取与认证说明
+# Suno API Key Authentication
 
-## API 密钥
+Every request to the Suno-API is authenticated with an API key. This page covers how to
+create a key, how to send it, what the error responses mean, and how to keep it safe.
 
-Suno API Key 是调用本平台所有接口的凭证。Suno-API 使用 API 密钥（API Key）进行身份验证，所有 API 请求都需要在 HTTP 请求头中携带它。
+> **Short answer:** `suno_api_key` is not a JSON request field. Put the key in the
+> `Authorization` header as `Bearer YOUR_API_KEY`, then send `Content-Type: application/json`
+> with the request body. The same rule applies to generation, query, download and account
+> endpoints.
 
-## 获取 API 密钥
+> **Integration examples:** [test a request with cURL or Postman](/en/blog/suno-api-curl-postman/),
+> interpret [request_id and song_id](/en/blog/suno-api-task-result-fields/), and run a
+> [bounded batch queue](/en/blog/suno-api-batch-generation/).
 
-1. 访问 [https://www.suno-api.io](https://www.suno-api.io)
-2. 注册或登录您的账号
-3. 进入控制台页面
-4. 点击「创建新密钥」按钮
-5. 为密钥设置一个名称（可选）
-6. 复制生成的 API 密钥
+## API keys
 
-**重要提示**:
-- API 密钥只在创建时显示一次，请妥善保管
-- 如果丢失密钥，需要重新创建
-- 每个账号可以创建多个 API 密钥
+An API key is a bearer token tied to your account. It carries your balance, so anything
+that has the key can spend it. Keys are created per account and are shown only once — copy
+a new key immediately and store it somewhere safe.
 
-## 使用 API 密钥
+## Creating a key
 
-### 请求头格式
+1. Register at <https://www.suno-api.io> — an email address is enough, no phone number.
+2. Open the console and go to token management.
+3. Create a new key and copy it.
 
-在所有 API 请求中，需要在 HTTP 请求头中包含以下信息：
+Keys look like `sk-…`. If you lose a key you cannot recover it; create a new one and
+delete the old one.
 
-```
+## Using a key
+
+### Request header format
+
+Send the key in the `Authorization` header on every request:
+
+```http
 Authorization: Bearer YOUR_API_KEY
 Content-Type: application/json
 ```
 
-### 示例
+### Example
 
-> **等待时间与超时（重要）**：下面的示例调用的是生成接口 `POST /api/music/create`，它是**同步接口**，要点如下：
->
-> - **响应返回时才代表订单已被受理并提交生成**，受理前不会有任何中间响应，也没有别的接口能查到这一单。
-> - 实测等待：多数请求 1–3 秒返回，约 10% 超过 30 秒，最长约 230 秒。
-> - **请把客户端超时设置为 300 秒以上**（下面各语言示例已带上对应的超时设置）。
-> - **未收到响应不等于没有生成。** 超时后请勿立即重试，否则会重复下单、重复扣费；连接中断可稍后用 `GET /api/music/songs` 确认。
->
-> 完整说明见[新版 API 总览](current-overview.md)的「等待时间与超时设置」。
-
-#### cURL
+> **Waiting time and timeouts.** The example below calls a generation endpoint
+> (`POST /api/music/create`), which is **synchronous**: the order is only accepted once the
+> response arrives, and there is no intermediate response while the service completes the
+> required security checks. Measured on production: most
+> requests return in 1-3 seconds, about 10% take longer than 30 seconds, and the longest
+> observed wait is about 230 seconds. **Set your client timeout to 300 seconds or more.**
+> A timeout or dropped connection does **not** mean the song was not generated - the order
+> may already be accepted and generating. Do not retry immediately (that creates a second
+> order and charges again); check `GET /api/music/songs` first. See "Waiting time and
+> timeouts" in the [API overview](/docs/current-overview/).
 
 ```bash
 curl -X POST https://www.suno-api.io/api/music/create \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   --max-time 300 \
-  -d '{
-    "description": "一首轻快的流行歌曲"
-  }'
+  -d '{"description": "a calm piano piece for a cafe"}'
 ```
 
-#### Python
-
-```python
-import requests
-
-headers = {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
-}
-
-response = requests.post(
-    "https://www.suno-api.io/api/music/create",
-    json={"description": "一首轻快的流行歌曲"},
-    headers=headers,
-    timeout=300
-)
-```
-
-#### Node.js
-
-```javascript
-const axios = require('axios');
-
-const headers = {
-  'Authorization': 'Bearer YOUR_API_KEY',
-  'Content-Type': 'application/json'
-};
-
-const response = await axios.post(
-  'https://www.suno-api.io/api/music/create',
-  { description: '一首轻快的流行歌曲' },
-  { headers, timeout: 300000 }
-);
-```
-
-#### PHP
-
-```php
-<?php
-$headers = [
-    "Authorization: Bearer YOUR_API_KEY",
-    "Content-Type: application/json"
-];
-
-$ch = curl_init("https://www.suno-api.io/api/music/create");
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-    "description" => "一首轻快的流行歌曲"
-]));
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 300);
-
-$response = curl_exec($ch);
-curl_close($ch);
-?>
-```
-
-## 认证错误
+## Authentication errors
 
 ### 401 Unauthorized
 
-**原因**:
-- API 密钥缺失
-- API 密钥格式错误
-- API 密钥无效或已被删除
+The header is missing, malformed, or the key does not exist.
 
-**错误响应示例**:
 ```json
 {
-  "success": false,
-  "message": "无效的 API 密钥",
-  "error_code": "INVALID_API_KEY"
+  "error": {
+    "message": "Invalid API key provided",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key"
+  }
 }
 ```
 
-**解决方案**:
-1. 检查请求头中是否包含 `Authorization` 字段
-2. 确认格式为 `Bearer YOUR_API_KEY`（注意 Bearer 后有空格）
-3. 确认 API 密钥是否正确
-4. 如果密钥已删除，请创建新密钥
+Check that the header reads exactly `Bearer <key>` — with a space after `Bearer` — and
+that you have not copied a trailing newline into the key.
 
 ### 403 Forbidden
 
-**原因**:
-- API 密钥已被禁用
-- 账号已被暂停
+The key exists but is not allowed to make this request — most often because the key was disabled or the account was suspended. Check the account status in the console and contact support if the reason is not obvious.
 
-**错误响应示例**:
-```json
-{
-  "success": false,
-  "message": "API 密钥已被禁用",
-  "error_code": "API_KEY_DISABLED"
-}
-```
+## Security practices
 
-**解决方案**:
-- 联系技术支持了解详情
-- 检查账号状态
+### Keep the key out of client-side code
 
-## 安全最佳实践
+Never ship a key inside a web page, a mobile app or a desktop binary. Anyone who can open
+developer tools can read it and spend your balance. Call the API from your own server and
+expose your own endpoint to your users.
 
-### 1. 保护您的 API 密钥
+### Use environment variables
 
-**不要**:
-- ❌ 在前端代码中暴露 API 密钥
-- ❌ 将 API 密钥提交到 Git 仓库
-- ❌ 在公开的地方分享 API 密钥
-- ❌ 在日志中记录 API 密钥
-
-**应该**:
-- ✅ 将 API 密钥存储在环境变量中
-- ✅ 在后端服务器中调用 API
-- ✅ 使用配置文件（不提交到版本控制）
-- ✅ 定期轮换 API 密钥
-
-### 2. 环境变量配置
-
-#### Linux/Mac
+#### Linux / macOS
 
 ```bash
-# 在 ~/.bashrc 或 ~/.zshrc 中添加
-export SUNO_API_KEY="YOUR_API_KEY"
+# ~/.bashrc or ~/.zshrc
+export SUNO_API_KEY="sk-your-key-here"
+```
 
-# 在代码中使用
+```bash
+# in code
+curl -H "Authorization: Bearer $SUNO_API_KEY" ...
+```
+
+```python
+# python
 import os
-api_key = os.environ.get('SUNO_API_KEY')
+api_key = os.environ["SUNO_API_KEY"]
+```
+
+#### .env
+
+```dotenv
+# .env file — make sure it is listed in .gitignore
+SUNO_API_KEY=sk-your-key-here
 ```
 
 #### Windows
 
 ```cmd
-# 设置环境变量
-setx SUNO_API_KEY "YOUR_API_KEY"
-
-# 在代码中使用
-import os
-api_key = os.environ.get('SUNO_API_KEY')
+setx SUNO_API_KEY "sk-your-key-here"
 ```
 
-#### .env 文件（推荐）
-
-```bash
-# .env 文件
-SUNO_API_KEY=YOUR_API_KEY
-
-# 添加到 .gitignore
-echo ".env" >> .gitignore
-```
-
-```python
-# Python 使用 python-dotenv
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-api_key = os.environ.get('SUNO_API_KEY')
-```
+#### Node.js
 
 ```javascript
-// Node.js 使用 dotenv
 require('dotenv').config();
 const apiKey = process.env.SUNO_API_KEY;
 ```
 
-### 3. 密钥管理
+### Rotate keys when needed
 
-**创建多个密钥**:
-- 为不同的应用或环境创建不同的密钥
-- 开发环境和生产环境使用不同的密钥
-- 便于追踪和管理
+Rotate keys every 3-6 months, and immediately if you suspect a leak. Delete the keys you no longer use: an unused key is only an unused risk.
 
-**定期轮换**:
-- 建议每 3-6 个月更换一次密钥
-- 如果怀疑密钥泄露，立即更换
+## Rate limits
 
-**删除不用的密钥**:
-- 及时删除不再使用的密钥
-- 减少安全风险
+Requests are rate limited per key:
 
-## 速率限制
-
-为了保证服务质量，API 有以下速率限制：
-
-| 限制类型 | 限制值 | 说明 |
-|---------|--------|------|
-| 每秒请求数 | 10 次 | 单个 API 密钥每秒最多 10 次请求 |
-| 每分钟请求数 | 100 次 | 单个 API 密钥每分钟最多 100 次请求 |
-| 并发生成任务 | 5 个 | 同时进行的音乐生成任务不超过 5 个 |
+| Limit | Value | Notes |
+|---|---|---|
+| Requests per second | 10 | Per API key |
+| Requests per minute | 100 | Per API key |
+| Concurrent generation tasks | 5 | At most five generations at the same time |
 
 ### 429 Too Many Requests
 
-**错误响应示例**:
+When you exceed a limit the API returns `429`, and the response may carry a `retry_after` value in seconds. Wait that long before the next attempt; reduce your request rate, queue the work, or retry with exponential backoff instead of in a tight loop.
+
 ```json
 {
-  "success": false,
-  "message": "请求过于频繁，请稍后再试",
-  "error_code": "RATE_LIMIT_EXCEEDED",
-  "retry_after": 60
+  "error": {
+    "message": "Rate limit exceeded, please retry later",
+    "type": "rate_limit_error",
+    "code": "rate_limit_exceeded"
+  }
 }
 ```
 
-**解决方案**:
-- 降低请求频率
-- 实现请求队列
-- 使用指数退避重试策略
-- 等待 `retry_after` 秒后重试
+### Retry strategy
 
-### 重试策略示例
+Retry only on explicit failures. **Do not retry after a read or connection timeout**: generation endpoints are synchronous, so a timeout may mean the order was already accepted and is generating — retrying creates a duplicate order and charges you twice. Set the client timeout to 300 seconds or more and, after a dropped connection, confirm the order with `GET /api/music/songs` before resubmitting. See “Wait times and timeout settings” in the [new API overview](current-overview.md).
 
-下面是一个保守的重试实现。两点必须注意：生成类接口要设置足够长的超时（300 秒以上）；**超时（`ReadTimeout` / `ConnectTimeout`）不要重试** —— 订单可能已经受理并正在生成，重试会重复下单、重复扣费，请先查询确认。
+Retry with exponential backoff rather than in a tight loop:
 
 ```python
 import time
-import requests
 
-def api_request_with_retry(url, data, max_retries=3, timeout=300):
-    """带重试的 API 请求（只对明确的失败响应重试）"""
-    for attempt in range(max_retries):
-        try:
-            # 生成类接口是同步接口，超时至少要给到 300 秒
-            response = requests.post(url, json=data, headers=headers, timeout=timeout)
-
-            if response.status_code == 429:
-                # 速率限制，等待后重试
-                retry_after = response.json().get('retry_after', 60)
-                print(f"速率限制，等待 {retry_after} 秒...")
-                time.sleep(retry_after)
-                continue
-
-            response.raise_for_status()
-            return response.json()
-
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
-            # 生成类接口超时后不要重试：这一单可能已经受理并正在生成。
-            # 请先用 GET /api/music/songs 确认，确认没有再重新提交。
-            raise TimeoutError(
-                "请求超时。该订单可能已经受理，请先用 GET /api/music/songs 确认后再决定是否重新提交。"
-            ) from e
-
-        except requests.exceptions.RequestException as e:
-            if attempt == max_retries - 1:
-                raise
-            # 指数退避
-            wait_time = 2 ** attempt
-            print(f"请求失败，{wait_time} 秒后重试...")
-            time.sleep(wait_time)
-
-    raise Exception("达到最大重试次数")
+delay = 1.0
+for attempt in range(5):
+    response = call_api()
+    if response.status_code != 429:
+        break
+    time.sleep(delay)
+    delay *= 2
 ```
 
-## 常见问题
+## FAQ
 
-### Q: API 密钥的格式是什么？
+### What format does an API key have?
 
-A: API 密钥以 `sk-` 开头，后跟一串字母和数字，总长度约 50-60 个字符。
+It starts with `sk-` followed by letters and digits, about 50-60 characters in total.
 
-### Q: 可以在前端直接调用 API 吗？
+### Can I call the API directly from a browser?
 
-A: 不建议。这会暴露您的 API 密钥。应该在后端服务器中调用 API，前端通过您的后端接口间接使用。
+Technically yes, but do not do it in production. The key would be visible to every visitor.
+Proxy the request through your own backend instead.
 
-### Q: 如何知道我的 API 密钥是否有效？
+### How do I check whether a key is still valid?
 
-A: 发起任何 API 请求，如果返回 401 错误，说明密钥无效。
+Make any authenticated request. A `200` means the key works; `401` means it is invalid or
+deleted.
 
-### Q: 忘记 API 密钥怎么办？
+### I lost my key — what now?
 
-A: API 密钥只在创建时显示一次。如果忘记，需要删除旧密钥并创建新密钥。
+Keys cannot be recovered. Create a new one in the console and delete the old entry.
 
-### Q: 一个账号可以创建多少个 API 密钥？
+### How many keys can one account have?
 
-A: 没有数量限制，但建议合理管理，及时删除不用的密钥。
+There is no fixed limit. Create one key per application or environment so you can revoke them independently, and delete the ones you stop using.
 
-### Q: API 密钥会过期吗？
+### Do keys expire?
 
-A: 不会自动过期，除非您手动删除或账号被暂停。
+Keys stay valid until you delete them or the account is closed. Rotate them periodically
+as good practice.
 
-### Q: 如何监控 API 使用情况？
+### How do I monitor usage?
 
-A: 登录控制台，可以查看每个 API 密钥的使用统计，包括请求次数、消费金额等。
+Sign in to the console: per-key usage is listed there, including request counts, spend and recent tasks.
 
-## 相关链接
+## Related pages
 
-- [快速开始指南](./quick-start.md)
-- [API 文档首页](./README.md)
-- [控制台](https://www.suno-api.io/console)
+- [Quick start guide](quick-start.md)
+- [Supported models](models.md)

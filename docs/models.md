@@ -1,30 +1,40 @@
-# 支持的模型版本
+# Suno API Models: V6, V6 Wild and V6 Mini
 
-## 当前可用的普通生成模型
+> **Model guide:** [Choose between Suno V6, V6 Wild and V6 Mini](/en/blog/suno-v6-wild-mini/)
 
-对客请求只使用下表中的平台模型名。
+## Currently available generation models
 
-| 对客模型名 | 对客显示名称 | 用途 | 状态 |
+Customer-facing generation accepts only `suno-v6`, `suno-v6-wild` and `suno-v6-mini`.
+`suno-v6` is the default when the `model` field is omitted.
+
+> **Short answer:** use `suno-v6` for normal generation, `suno-v6-wild` for more varied
+> results, and `suno-v6-mini` for the lighter V6 variant. Older models cannot be used for
+> new requests; they may still appear in historical task records.
+
+| Platform model name | Display name | Purpose | Status |
 |---|---|---|---|
-| `suno-v6` | Suno V6 | 普通生成默认模型 | 当前可用 |
-| `suno-v6-wild` | Suno V6 Wild | V6 Wild 变体 | 当前可用 |
-| `suno-v6-mini` | Suno V6 Mini | V6 Mini 变体 | 当前可用 |
+| `suno-v6` | Suno V6 | Default model for standard generation | Available |
+| `suno-v6-wild` | Suno V6 Wild | Wild variant of V6 | Available |
+| `suno-v6-mini` | Suno V6 Mini | Mini variant of V6 | Available |
 
-默认推荐模型：`suno-v6`。
+Default recommendation: `suno-v6`.
 
-## 分轨说明
+## A note on stems
 
-分轨是独立的固定能力，不需要客户填写或选择歌曲生成模型。调用分轨接口时只需提供源歌曲和分轨模式，例如 `two` 或 `twelve`；实际返回数量以接口响应为准。
+Stem separation is a standalone fixed capability; it does not require you to pick a
+song-generation model. When you call the stem endpoint you only supply the source song
+and the stem mode, for example `two` or `twelve`. The number of results actually returned
+is whatever the response reports.
 
-## 模型参数
+## The `model` parameter
 
-在生成类 API 中，`model` 通常是可选的：
+In generation endpoints `model` is usually optional:
 
-- 不填写：使用当前默认模型 `suno-v6`。
-- 填写：只能使用 `suno-v6`、`suno-v6-wild` 或 `suno-v6-mini`。
-- 只能填写上表中的对客模型名。
+- Omitted: the current default `suno-v6` is used.
+- Supplied: it must be `suno-v6`, `suno-v6-wild` or `suno-v6-mini`.
+- Only the platform model names in the table above are accepted.
 
-### 简易生成示例
+### Minimal generation example
 
 ```bash
 curl -X POST https://www.suno-api.io/api/music/create \
@@ -32,25 +42,25 @@ curl -X POST https://www.suno-api.io/api/music/create \
   -H "Content-Type: application/json" \
   --max-time 300 \
   -d '{
-    "description": "一首轻快的流行歌曲",
+    "description": "an upbeat pop song about the first day of spring",
     "model": "suno-v6"
   }'
 ```
 
-> **等待时间与超时（重要）**：生成接口是同步接口，**响应返回时才代表订单已被受理并提交生成**。实测多数请求 1–3 秒返回，约 10% 超过 30 秒，最长约 230 秒。请把客户端超时设置为 300 秒以上（示例中的 `--max-time 300`）；**未收到响应不等于没有生成**，超时后请勿立即重试。详见[新版 API 总览](current-overview.md)的「等待时间与超时设置」。
+> **Waiting time and timeouts.** Generation endpoints are synchronous: the order is only accepted once the response arrives. Measured on production, most requests return in 1-3 seconds, about 10% take longer than 30 seconds, and the longest observed wait is about 230 seconds. **Set your client timeout to 300 seconds or more** (the `--max-time 300` above); a timeout does **not** mean the song was not generated, so do not retry immediately - check `GET /api/music/songs` first. See “Wait times and timeout settings” in the [new API overview](current-overview.md).
 
-### V6 变体示例
+### V6 variant example
 
 ```json
 {
   "model": "suno-v6-wild",
-  "description": "一首具有实验性结构的电子音乐"
+  "description": "an electronic track with an experimental structure"
 }
 ```
 
-## 已下线模型
+## Retired models
 
-以下模型已不再作为新建请求的当前可用选项：
+The following models can no longer be used for new requests:
 
 - `suno-v2`
 - `suno-v3`
@@ -62,13 +72,19 @@ curl -X POST https://www.suno-api.io/api/music/create \
 - `suno-v5`
 - `suno-v5-5`
 
-历史歌曲和历史任务仍可能在查询结果中保留旧的 `model_name` 或 `model_version`，这不代表旧模型可以继续提交新任务。
+Existing songs and historical tasks may still report an old `model_name` or
+`model_version` in query results. That is historical data; it does not mean the old model
+can accept new requests.
 
-为兼容仍在运行的旧客户端，如果请求里填写了已下线的模型名，服务端会直接把该次请求按当前默认模型 `suno-v6` 处理，并在任务记录中返回 `suno-v6`，不会返回“模型不可用”错误。建议尽快把请求示例更新为上表中的当前模型名。
+For compatibility with older clients that are still running, a request that names a
+retired model is processed with the current default `suno-v6` instead of being rejected.
+The task record will report `suno-v6`; you will not receive a "model unavailable" error.
+You should still update your request examples to the current model names as soon as
+possible.
 
-## 查询模型列表
+## Listing models
 
-`GET /v1/models` 的普通歌曲模型至少应包含：
+`GET /v1/models` should include at least these standard song models:
 
 ```json
 {
@@ -81,12 +97,37 @@ curl -X POST https://www.suno-api.io/api/music/create \
 }
 ```
 
-响应也可能包含歌词、兼容路由或平台内部的其他模型。它们不应与普通歌曲生成的 V6 模型列表混淆。
+The response may also contain lyric models, compatibility routes or other internal
+models. Do not confuse those with the V6 song-generation models.
 
-## 响应字段说明
+## Reading model fields in responses
 
-查询结果中的 `model_version`、`model` 或 `model_name` 可能来自平台保存值或接口返回值：
+`model_version`, `model` and `model_name` in query results can come from either the stored
+platform value or the API response:
 
-- 对客保存的当前普通生成模型通常显示为 `suno-v6`、`suno-v6-wild` 或 `suno-v6-mini`。
-- 接口返回的模型字段以平台对客模型名为准。
-- 历史任务可能显示已下线的旧模型名。客户端应把它们作为历史数据展示，不要据此重新提交请求。
+- The stored current generation model normally reads `suno-v6`, `suno-v6-wild` or
+  `suno-v6-mini`.
+- The model field returned by the API always uses the platform model name.
+- Historical tasks may show a retired model name. Treat that as historical display data
+  and do not resubmit requests with it.
+
+## Choosing between the V6 variants
+
+Most integrations only ever need the default. The three variants differ in how tightly
+they follow the prompt versus how much variation they introduce:
+
+| Variant | Use it when |
+|---|---|
+| `suno-v6` | You want a predictable result that follows the description closely. This is the default and the right choice for production pipelines. |
+| `suno-v6-wild` | You want more variation and are happy to audition several takes — useful when exploring a style rather than shipping a specific brief. |
+| `suno-v6-mini` | You want the cheapest way to iterate on a prompt before committing to a full generation. |
+
+Because a run returns two tracks either way, a practical workflow is to draft with
+`suno-v6-mini`, then re-run the prompt you liked on `suno-v6` for the take you actually
+publish.
+
+## Cost and refunds
+
+Generation is billed per request, not per model: each run costs 0.6 CNY and returns two
+tracks. A failed generation is refunded automatically, so an unsuccessful attempt never
+consumes balance. Downloads are unlimited and are never billed separately.
