@@ -1,12 +1,13 @@
 # Node.js Starter
 
-A zero-dependency Node.js example for the independent Suno-API service.
+A zero-dependency Node.js example for AI music generation with official Suno V6
+models.
 
 It demonstrates asynchronous generation acceptance, `Idempotency-Key`, bounded
 request polling, separation of `request_id` and `song_id`, and retrieval of a
 short-lived media URL.
 
-Suno-API is an independent third-party service and is not affiliated with Suno.
+Suno-API uses the official Suno V6 models.
 
 ## Run
 

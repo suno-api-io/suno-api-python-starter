@@ -22,6 +22,5 @@ the GitHub mirror and the website differ, the website controls.
 The CC BY 4.0 documentation license does not grant rights to Suno-API names,
 logos, product branding, third-party trademarks, third-party images, customer
 content, or other material identified as excluded. Suno is a trademark of its
-respective owner. Suno-API is an independent third-party service and is not
-affiliated with or endorsed by Suno.
+respective owner. Suno-API uses the official Suno V6 models.
 
