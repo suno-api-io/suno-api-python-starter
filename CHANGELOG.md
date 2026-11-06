@@ -2,9 +2,8 @@
 
 ## v0.1.2 - 2026-11-06
 
-- Aligned public repository wording with the approved official Suno V6 model
-  description.
-- Improved GitHub discoverability for the zero-dependency Node.js example.
+- Aligned the public notice and Node.js example with the approved official Suno
+  V6 model description.
 
 ## v0.1.1 - 2026-11-05
 
