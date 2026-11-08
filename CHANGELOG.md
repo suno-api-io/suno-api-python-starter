@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3 - 2026-11-08
+
+- Added a multilingual media delivery guide covering URL expiry, refresh,
+  rehosting, checksum verification, and production acceptance checks.
+
 ## v0.1.2 - 2026-11-06
 
 - Aligned the public notice and Node.js example with the approved official Suno

@@ -33,4 +33,5 @@ The example uses the built-in `fetch` API and has no npm dependencies.
 - https://www.suno-api.io/docs/current-music-create/
 - https://www.suno-api.io/docs/current-music-query/
 - https://www.suno-api.io/docs/current-music-media-download/
+- https://github.com/suno-api-io/suno-api-python-starter/blob/main/guides/media-url-lifecycle.md
 

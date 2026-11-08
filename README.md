@@ -6,6 +6,8 @@
 
 🟢 [Node.js Starter](./examples/node/README.md)
 
+🧭 [媒体交付指南 / Media delivery guide](./guides/media-url-lifecycle.md)
+
 ## License
 
 - Source code and runnable examples: MIT License (`LICENSE`).
