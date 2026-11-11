@@ -1,11 +1,12 @@
 # Suno-API 接口文档
 
 > 本目录同步自 Suno-API 官网公开接口文档，便于开发者在 GitHub 上阅读、检索和引用。
-> 最近同步：2026-11-04。在线版本：https://www.suno-api.io/docs/
+> 最近同步：2026-11-11。在线版本：https://www.suno-api.io/docs/
 > 接口行为、模型状态和价格以官网实时页面为准；示例中的 API Key 统一使用 `YOUR_API_KEY` 占位。
 
 - GitHub 开发者主页：https://github.com/suno-api-io
 - Python Starter 仓库：https://github.com/suno-api-io/suno-api-python-starter
+- 多语言快速开始：https://github.com/suno-api-io/suno-api-python-starter/blob/main/docs/quickstart-multilingual.md
 
 欢迎使用 Suno API 接口文档。本站使用 Suno 官方模型提供 AI 音乐生成与歌曲创作 HTTP API，帮助开发者快速接入灵感创作、专业模式、歌词生成、AI 翻唱、人声克隆、续写、伴奏分离和 WAV 音频处理能力。
 
@@ -15,6 +16,7 @@
 
 ## 📚 文档导航
 
+- [多语言快速开始（中 / 英 / 日 / 法 / 俄）](./quickstart-multilingual.md) - 五语种接入流程、超时与重试规则
 - [快速开始指南](./quick-start.md) - 5分钟快速上手
 - [认证说明](./authentication.md) - API 密钥获取与使用
 - [支持的模型](./models.md) - 模型版本说明

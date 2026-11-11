@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.4 - 2026-11-11
+
+- Added a five-language quickstart covering authentication, asynchronous
+  acceptance, request polling, model selection, timeout handling, retries, and
+  media delivery.
+- Linked the quickstart from the repository README and documentation index.
+
 ## v0.1.3 - 2026-11-08
 
 - Added a multilingual media delivery guide covering URL expiry, refresh,
