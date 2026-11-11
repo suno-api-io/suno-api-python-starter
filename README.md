@@ -4,12 +4,15 @@
 
 👤 [GitHub Profile](https://github.com/suno-api-io) | 📚 [公开接口文档 / Public API documentation](./docs/README.md)
 
+🌐 [多语言快速开始 / Multilingual quickstart](./docs/quickstart-multilingual.md)
+
 🟢 [Node.js Starter](./examples/node/README.md)
 
 🧭 [媒体交付指南 / Media delivery guide](./guides/media-url-lifecycle.md)
 
 ## Technical writing
 
+- [Suno-API 多语言快速开始（GitHub）](./docs/quickstart-multilingual.md)
 - [AI 音乐 API 接入失败地图（CSDN）](https://blog.csdn.net/qq_15889541111/article/details/170122909)
 - [AI 音乐生成完成后的媒体交付（CSDN）](https://blog.csdn.net/qq_15889541111/article/details/170346504)
 - [AI 音乐 API 超时与故障排查（知乎）](https://zhuanlan.zhihu.com/p/2101601083139286737)
