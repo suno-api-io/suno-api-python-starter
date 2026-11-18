@@ -48,3 +48,11 @@ jobs:
         working-directory: examples/node
         run: npm run check
 
+      - name: Install TypeScript example dependencies
+        working-directory: examples/typescript
+        run: npm ci
+
+      - name: Check TypeScript example
+        working-directory: examples/typescript
+        run: npm run check
+

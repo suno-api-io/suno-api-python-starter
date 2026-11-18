@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.0 - 2026-11-18
+
+- Added a typed TypeScript starter covering asynchronous acceptance,
+  idempotency, bounded polling, per-song result handling, and media lookup.
+- Added TypeScript compilation and CLI checks to CI.
+
 ## v0.1.4 - 2026-11-11
 
 - Added a five-language quickstart covering authentication, asynchronous

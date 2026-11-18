@@ -8,6 +8,8 @@
 
 🟢 [Node.js Starter](./examples/node/README.md)
 
+🔷 [TypeScript Starter](./examples/typescript/README.md)
+
 🧭 [媒体交付指南 / Media delivery guide](./guides/media-url-lifecycle.md)
 
 ## Technical writing
