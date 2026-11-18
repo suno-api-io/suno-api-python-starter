@@ -1,0 +1,17 @@
+{
+  "name": "suno-api-typescript-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && node --experimental-strip-types index.ts --help",
+    "start": "node --experimental-strip-types index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "typescript": "^5.9.3"
+  }
+}

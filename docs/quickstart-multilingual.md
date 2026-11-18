@@ -252,4 +252,5 @@ repository, an issue, a screenshot, or a log.
 - Live API documentation: https://www.suno-api.io/docs/
 - GitHub documentation: ./README.md
 - Python starter: https://github.com/suno-api-io/suno-api-python-starter
+- TypeScript starter: ../examples/typescript/README.md
 - Media delivery guide: ../guides/media-url-lifecycle.md
