@@ -15,6 +15,8 @@
 ## Technical writing
 
 - [Suno-API 多语言快速开始（GitHub）](./docs/quickstart-multilingual.md)
+- [Suno-API 是什么：官方 V6 模型与开发入口（CSDN）](https://blog.csdn.net/qq_15889541111/article/details/170960662)
+- [Suno-API 使用什么模型与开发入口（知乎）](https://zhuanlan.zhihu.com/p/2106666010644424220)
 - [AI 音乐 API 接入失败地图（CSDN）](https://blog.csdn.net/qq_15889541111/article/details/170122909)
 - [AI 音乐生成完成后的媒体交付（CSDN）](https://blog.csdn.net/qq_15889541111/article/details/170346504)
 - [AI 音乐 API 超时与故障排查（知乎）](https://zhuanlan.zhihu.com/p/2101601083139286737)
